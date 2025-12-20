@@ -1,6 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../core/bridge.dart';
 import 'score_painter.dart';
 
@@ -53,6 +54,26 @@ class _MainScreenState extends State<MainScreen> {
       calloc.free(_countPtr!);
     }
     super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xml', 'musicxml', 'mxl'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _pathController.text = result.files.single.path!;
+        });
+        _loadFile();
+      }
+    } catch (e) {
+      setState(() {
+        _statusMessage = "Error picking file: $e";
+      });
+    }
   }
 
   void _loadFile() {
@@ -160,29 +181,46 @@ class _MainScreenState extends State<MainScreen> {
                   const Divider(),
                   const SizedBox(height: 10),
 
+                  // Open File Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _pickFile,
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text("Open MusicXML"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isDarkMode ? Colors.blueGrey[700] : Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
                   TextField(
                     controller: _pathController,
-                    style: TextStyle(color: sidebarTextColor),
+                    style: TextStyle(color: sidebarTextColor, fontSize: 12),
                     decoration: InputDecoration(
-                      labelText: "XML File Path",
+                      labelText: "File Path",
                       labelStyle: TextStyle(color: sidebarTextColor.withOpacity(0.7)),
                       enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor.withOpacity(0.3))),
                       focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     ),
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _loadFile,
-                      icon: const Icon(Icons.file_open),
-                      label: const Text("Load & Render"),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Reload"),
                     ),
                   ),
                   const SizedBox(height: 10),
                    SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: OutlinedButton.icon(
                       onPressed: _isLoading ? null : _downloadSvg,
                       icon: const Icon(Icons.download),
                       label: const Text("Download SVG"),
