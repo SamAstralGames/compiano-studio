@@ -1,3 +1,6 @@
 [submodule "native/mxmlconverter"]
 	path = native/mxmlconverter
 	url = git@github.com:SamAstralGames/mxmlconverter.git
+[submodule "third_party/mxmlconverter"]
+	path = third_party/mxmlconverter
+	url = git@github.com:SamAstralGames/mxmlconverter.git
