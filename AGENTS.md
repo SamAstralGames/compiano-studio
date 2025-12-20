@@ -7,7 +7,7 @@ Références de vérité (ne pas lire par défaut ; n’ouvrir que si nécessair
 
 ## Contexte & quotas (TRÈS IMPORTANT)
 - Ne scanne jamais tout le repo.
-- Ignore toujours : build*/, dist/, node_modules/, .git/, third_party/, assets/, docs/ (sauf demande explicite).
+- Ignore toujours : build*/, dist/, node_modules/, .git/, assets/, docs/ (sauf demande explicite).
 
 ## regles de codage
 - Eviter les magic number et les valeur en dur pour rafistoler, demander a l'utilisateur
@@ -30,6 +30,7 @@ Apres validation, tu commit uniquement tes changements
 - Toute nouvelle structure doit être testable (petites fonctions, pas de singleton).
 - Pas d'ajout de dépendances externes sans demande explicite.
 - Bien commenter les fonctions, methodes, blocs boucle et condition.
+- Pas de modification dans third_party/mxmlconverter/
 
 ## Fin de tâche
 - Résumer : fichiers modifiés + raison + prochaine étape.

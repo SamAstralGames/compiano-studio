@@ -5,6 +5,22 @@ import 'package:file_picker/file_picker.dart';
 import '../core/bridge.dart';
 import 'score_painter.dart';
 
+// Donnée élémentaire d'un benchmark.
+class BenchItem {
+  final String label;
+  final double valueMs;
+
+  const BenchItem({required this.label, required this.valueMs});
+}
+
+// Layer du pipeline avec ses benchmarks.
+class BenchLayer {
+  final String name;
+  final List<BenchItem> items;
+
+  const BenchLayer({required this.name, required this.items});
+}
+
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -28,6 +44,8 @@ class _MainScreenState extends State<MainScreen> {
   
   // Theme State
   bool _isDarkMode = false;
+  static const double _benchTextSize = 12.0;
+  final ScrollController _sidebarScrollController = ScrollController();
   
   // Layout State
   double _lastLayoutWidth = 0.0;
@@ -36,6 +54,8 @@ class _MainScreenState extends State<MainScreen> {
   // Benchmarks
   int _reprocessCount = 0;
   double _lastProcessTimeMs = 0.0;
+  MXMLPipelineBench? _pipelineBench;
+  List<BenchLayer> _benchLayers = const [];
 
   @override
   void initState() {
@@ -58,6 +78,7 @@ class _MainScreenState extends State<MainScreen> {
     if (_countPtr != null) {
       calloc.free(_countPtr!);
     }
+    _sidebarScrollController.dispose();
     super.dispose();
   }
 
@@ -124,6 +145,7 @@ class _MainScreenState extends State<MainScreen> {
     
     _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
     _reprocessCount++;
+    _updatePipelineBench();
   }
   
   void _downloadSvg() {
@@ -140,12 +162,91 @@ class _MainScreenState extends State<MainScreen> {
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: color.withOpacity(0.7))),
+          Text(label, style: TextStyle(fontSize: _benchTextSize, color: color.withOpacity(0.7))),
           const Spacer(),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+          Text(value, style: TextStyle(fontSize: _benchTextSize, fontWeight: FontWeight.bold, color: color)),
         ],
       ),
     );
+  }
+
+  // Construit les layers de benchmarks a partir des donnees C.
+  List<BenchLayer> _buildBenchLayers(MXMLPipelineBench bench) {
+    return [
+      BenchLayer(
+        name: "Input",
+        items: [
+          BenchItem(label: "XML Load", valueMs: bench.inputXmlLoadMs),
+          BenchItem(label: "Model Build", valueMs: bench.inputModelBuildMs),
+          BenchItem(label: "Input Total", valueMs: bench.inputTotalMs),
+        ],
+      ),
+      BenchLayer(
+        name: "Layout",
+        items: [
+          BenchItem(label: "Metrics", valueMs: bench.layoutMetricsMs),
+          BenchItem(label: "Line Breaking", valueMs: bench.layoutLineBreakingMs),
+          BenchItem(label: "Layout Total", valueMs: bench.layoutTotalMs),
+        ],
+      ),
+      BenchLayer(
+        name: "Render",
+        items: [
+          BenchItem(label: "Commands", valueMs: bench.renderCommandsMs),
+        ],
+      ),
+      BenchLayer(
+        name: "Export",
+        items: [
+          BenchItem(label: "Serialize SVG", valueMs: bench.exportSerializeSvgMs),
+        ],
+      ),
+      BenchLayer(
+        name: "Pipeline",
+        items: [
+          BenchItem(label: "Pipeline Total", valueMs: bench.pipelineTotalMs),
+        ],
+      ),
+    ];
+  }
+
+  // Met a jour le cache local des benchmarks pipeline.
+  void _updatePipelineBench() {
+    // On stoppe si le handle est indisponible.
+    if (_handle == null) return;
+    final bench = _bridge.getPipelineBench(_handle!);
+    // Si la lib ne renvoie rien, on garde l'etat actuel.
+    if (bench == null) return;
+    _pipelineBench = bench;
+    _benchLayers = _buildBenchLayers(bench);
+  }
+
+  // Construit l'arborescence UI des benchmarks.
+  Widget _buildBenchTree(Color textColor) {
+    // Si aucune donnee, on montre un placeholder.
+    if (_pipelineBench == null || _benchLayers.isEmpty) {
+      return Text(
+        "No pipeline bench data",
+        style: TextStyle(fontSize: _benchTextSize, color: textColor.withOpacity(0.7)),
+      );
+    }
+
+    final tiles = <Widget>[];
+    // On ajoute un tile par layer dans l'ordre du pipeline.
+    for (final layer in _benchLayers) {
+      tiles.add(
+        ExpansionTile(
+          title: Text(layer.name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+          children: [
+            // On liste les items du layer.
+            for (final item in layer.items)
+              _buildBenchRow(item.label, "${item.valueMs.toStringAsFixed(2)} ms", textColor),
+          ],
+        ),
+      );
+    }
+
+    return Column(children: tiles);
   }
 
   @override
@@ -164,86 +265,94 @@ class _MainScreenState extends State<MainScreen> {
             child: Container(
               color: sidebarColor,
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Controls", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: sidebarTextColor)),
-                  const SizedBox(height: 20),
-                  
-                  // Theme Toggle
-                  Row(
+              child: Scrollbar(
+                controller: _sidebarScrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _sidebarScrollController,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Dark Mode", style: TextStyle(color: sidebarTextColor)),
-                      const Spacer(),
-                      Switch(
-                        value: _isDarkMode,
-                        onChanged: (val) {
-                          setState(() {
-                            _isDarkMode = val;
-                          });
-                        },
+                      Text("Controls", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: sidebarTextColor)),
+                      const SizedBox(height: 20),
+                      
+                      // Theme Toggle
+                      Row(
+                        children: [
+                          Text("Dark Mode", style: TextStyle(color: sidebarTextColor)),
+                          const Spacer(),
+                          Switch(
+                            value: _isDarkMode,
+                            onChanged: (val) {
+                              setState(() {
+                                _isDarkMode = val;
+                              });
+                            },
+                          ),
+                        ],
                       ),
+                      const Divider(),
+                      const SizedBox(height: 10),
+
+                      // Open File Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _pickFile,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text("Open MusicXML"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isDarkMode ? Colors.blueGrey[700] : Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      TextField(
+                        controller: _pathController,
+                        style: TextStyle(color: sidebarTextColor, fontSize: 12),
+                        decoration: InputDecoration(
+                          labelText: "File Path",
+                          labelStyle: TextStyle(color: sidebarTextColor.withOpacity(0.7)),
+                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor.withOpacity(0.3))),
+                          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _loadFile,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text("Reload"),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _downloadSvg,
+                          icon: const Icon(Icons.download),
+                          label: const Text("Download SVG"),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      Text("Pipeline Benchmarks", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: sidebarTextColor)),
+                      const SizedBox(height: 10),
+                      _buildBenchRow("Reprocess Count", "$_reprocessCount", sidebarTextColor),
+                      _buildBenchRow("Last Pipeline", "${_lastProcessTimeMs.toStringAsFixed(2)} ms", sidebarTextColor),
+                      const SizedBox(height: 10),
+                      _buildBenchTree(sidebarTextColor),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      Text("Status: $_statusMessage", style: TextStyle(fontSize: 12, color: sidebarTextColor.withOpacity(0.7))),
                     ],
                   ),
-                  const Divider(),
-                  const SizedBox(height: 10),
-
-                  // Open File Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _pickFile,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text("Open MusicXML"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isDarkMode ? Colors.blueGrey[700] : Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  TextField(
-                    controller: _pathController,
-                    style: TextStyle(color: sidebarTextColor, fontSize: 12),
-                    decoration: InputDecoration(
-                      labelText: "File Path",
-                      labelStyle: TextStyle(color: sidebarTextColor.withOpacity(0.7)),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor.withOpacity(0.3))),
-                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: sidebarTextColor)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _loadFile,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text("Reload"),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                   SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _downloadSvg,
-                      icon: const Icon(Icons.download),
-                      label: const Text("Download SVG"),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Divider(),
-                  Text("Pipeline Benchmarks", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: sidebarTextColor)),
-                  const SizedBox(height: 10),
-                  _buildBenchRow("Reprocess Count", "$_reprocessCount", sidebarTextColor),
-                  _buildBenchRow("Last Pipeline", "${_lastProcessTimeMs.toStringAsFixed(2)} ms", sidebarTextColor),
-                  
-                  const Spacer(),
-                  const Divider(),
-                  Text("Status: $_statusMessage", style: TextStyle(fontSize: 12, color: sidebarTextColor.withOpacity(0.7))),
-                ],
+                ),
               ),
             ),
           ),
