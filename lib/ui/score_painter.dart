@@ -7,25 +7,28 @@ class ScorePainter extends CustomPainter {
   final int commandCount;
   final ffi.Pointer<MXMLHandle>? handle; // Pour récupérer les strings
   final MXMLBridge bridge;
+  final bool isDarkMode;
 
   ScorePainter({
     required this.commands,
     required this.commandCount,
     required this.handle,
     required this.bridge,
+    this.isDarkMode = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Fond géré par le Container parent (ou dessiné ici si besoin)
+    // Pour être sûr, on ne dessine pas de fond ici pour laisser la transparence, 
+    // ou on dessine le bgColor si on veut. Le Container l'a déjà.
+    
+    // Couleur principale (Lignes, Texte)
+    final mainColor = isDarkMode ? Colors.white : Colors.black;
+
     if (commands == null || commandCount == 0 || handle == null) {
-      // Dessiner un placeholder si vide
-      final paint = Paint()..color = Colors.grey.withOpacity(0.2);
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
       return;
     }
-
-    // Fond blanc
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = Colors.white);
 
     // Itération sur les commandes
     for (int i = 0; i < commandCount; i++) {
@@ -33,7 +36,7 @@ class ScorePainter extends CustomPainter {
 
       switch (cmd.type) {
         case MXMLRenderCommandTypeC.MXML_LINE:
-          _drawLine(canvas, cmd.data.line);
+          _drawLine(canvas, cmd.data.line, mainColor);
           break;
         case MXMLRenderCommandTypeC.MXML_GLYPH:
           // TODO: Implémenter le rendu des glyphes (nécessite Font)
@@ -41,21 +44,18 @@ class ScorePainter extends CustomPainter {
            _drawDebugPoint(canvas, cmd.data.glyph.pos, Colors.red);
           break;
         case MXMLRenderCommandTypeC.MXML_TEXT:
-          _drawText(canvas, cmd.data.text);
+          _drawText(canvas, cmd.data.text, mainColor);
           break;
         case MXMLRenderCommandTypeC.MXML_DEBUG_RECT:
           _drawDebugRect(canvas, cmd.data.debugRect);
           break;
-        // case MXMLRenderCommandTypeC.MXML_PATH:
-        //   _drawPath(canvas, cmd.data.path);
-        //   break;
       }
     }
   }
 
-  void _drawLine(Canvas canvas, MXMLLineDataC line) {
+  void _drawLine(Canvas canvas, MXMLLineDataC line, Color color) {
     final paint = Paint()
-      ..color = Colors.black
+      ..color = color
       ..strokeWidth = line.thickness
       ..style = PaintingStyle.stroke;
 
@@ -70,12 +70,12 @@ class ScorePainter extends CustomPainter {
      canvas.drawCircle(Offset(pos.x, pos.y), 2.0, Paint()..color = color);
   }
 
-  void _drawText(Canvas canvas, MXMLTextDataC textCmd) {
+  void _drawText(Canvas canvas, MXMLTextDataC textCmd, Color color) {
     final text = bridge.getString(handle!, textCmd.textId);
     if (text.isEmpty) return;
 
     final textStyle = TextStyle(
-      color: Colors.black,
+      color: color,
       fontSize: textCmd.fontSize,
       fontStyle: textCmd.italic == 1 ? FontStyle.italic : FontStyle.normal,
       fontFamily: 'Serif', // Fallback
@@ -118,6 +118,9 @@ class ScorePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ScorePainter oldDelegate) {
-    return oldDelegate.commands != commands || oldDelegate.commandCount != commandCount;
+    return oldDelegate.commands != commands || 
+           oldDelegate.commandCount != commandCount ||
+           oldDelegate.isDarkMode != isDarkMode;
   }
 }
+
