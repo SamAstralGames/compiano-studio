@@ -150,6 +150,10 @@ typedef MxmlGetRenderCommands = Pointer<MXMLRenderCommandC> Function(Pointer<MXM
 typedef mxml_get_string_func = Pointer<Utf8> Function(Pointer<MXMLHandle>, Uint32);
 typedef MxmlGetString = Pointer<Utf8> Function(Pointer<MXMLHandle>, int);
 
+// int mxml_write_svg_to_file(mXMLHandle* handle, const char* filepath);
+typedef mxml_write_svg_to_file_func = Int32 Function(Pointer<MXMLHandle>, Pointer<Utf8>);
+typedef MxmlWriteSvgToFile = int Function(Pointer<MXMLHandle>, Pointer<Utf8>);
+
 
 class MXMLBridge {
   static late final DynamicLibrary _dylib;
@@ -160,6 +164,7 @@ class MXMLBridge {
   static late final MxmlLayout _layout;
   static late final MxmlGetRenderCommands _getRenderCommands;
   static late final MxmlGetString _getString;
+  static late final MxmlWriteSvgToFile _writeSvgToFile;
 
   static bool _initialized = false;
 
@@ -186,6 +191,7 @@ class MXMLBridge {
     _layout = _dylib.lookupFunction<mxml_layout_func, MxmlLayout>('mxml_layout');
     _getRenderCommands = _dylib.lookupFunction<mxml_get_render_commands_func, MxmlGetRenderCommands>('mxml_get_render_commands');
     _getString = _dylib.lookupFunction<mxml_get_string_func, MxmlGetString>('mxml_get_string');
+    _writeSvgToFile = _dylib.lookupFunction<mxml_write_svg_to_file_func, MxmlWriteSvgToFile>('mxml_write_svg_to_file');
 
     _initialized = true;
   }
@@ -222,5 +228,15 @@ class MXMLBridge {
     final ptr = _getString(handle, id);
     if (ptr == nullptr) return "";
     return ptr.toDartString();
+  }
+
+  bool writeSvgToFile(Pointer<MXMLHandle> handle, String filepath) {
+    final pathPtr = filepath.toNativeUtf8();
+    try {
+      final result = _writeSvgToFile(handle, pathPtr);
+      return result != 0;
+    } finally {
+      calloc.free(pathPtr);
+    }
   }
 }

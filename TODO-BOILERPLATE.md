@@ -63,14 +63,14 @@ mxmlconverter-boilerplate/
     - `mxml_load_file(path)`
     - `mxml_get_render_commands()`
     - `mxml_destroy()`
-- [ ] **UI** : Afficher le SVG retourné par le moteur dans un `flutter_svg` ou `WebView` (temporaire).
+- [x] **UI** : Implémentation via CustomPainter directement (Skipped SVG display).
 
 ### Phase 2 : Native Canvas Rendering (Zero-Copy)
 **But** : Performance maximale (60fps). Ne plus passer par du texte SVG.
 
-- [ ] **C-API** : Exposer `mxml_get_render_commands()` (Buffer binaire de commandes graphiques).
-- [ ] **Dart Parser** : Lire le buffer binaire (structs `RenderCommand`) en Dart.
-- [ ] **CustomPainter** : Implémenter un `ScorePainter` qui dessine les commandes (MoveTo, LineTo, CubicTo, Text) directement sur le Canvas Flutter.
+- [x] **C-API** : Exposer `mxml_get_render_commands()` (Buffer binaire de commandes graphiques) et `mxml_write_svg_to_file`.
+- [x] **Dart Parser** : Lire le buffer binaire (structs `RenderCommand`) en Dart.
+- [x] **CustomPainter** : Implémenter un `ScorePainter` qui dessine les commandes (MoveTo, LineTo, CubicTo, Text) directement sur le Canvas Flutter.
 - [ ] **Benchmark** : Mesurer le temps de rendu (vs SVG).
 
 ### Phase 3 : Interactivité & Chunking
