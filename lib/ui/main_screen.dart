@@ -31,6 +31,10 @@ class _MainScreenState extends State<MainScreen> {
   
   // Layout State
   double _lastLayoutWidth = 0.0;
+  
+  // Benchmarks
+  int _reprocessCount = 0;
+  double _lastProcessTimeMs = 0.0;
 
   @override
   void initState() {
@@ -92,8 +96,6 @@ class _MainScreenState extends State<MainScreen> {
         setState(() {
           if (success) {
             _statusMessage = "Loaded: $path";
-            // On force le layout avec la largeur actuelle connue ou une valeur par défaut
-            // Le LayoutBuilder le fera aussi, mais ça initialise l'état.
             if (_lastLayoutWidth > 0) {
                _performLayout(_lastLayoutWidth);
             }
@@ -109,26 +111,17 @@ class _MainScreenState extends State<MainScreen> {
   void _performLayout(double width) {
     if (_handle == null || width <= 0) return;
     
-    // Éviter de recalculer pour rien
-    // if ((width - _lastLayoutWidth).abs() < 1.0) return;
-    
-    // On met à jour _lastLayoutWidth immédiatement pour éviter la réentrance si on est dans un build ?
-    // Non, ici on est appelé par le LayoutBuilder ou Load.
     _lastLayoutWidth = width;
 
+    final stopwatch = Stopwatch()..start();
     _bridge.layout(_handle!, width);
+    stopwatch.stop();
     
     _commands = _bridge.getRenderCommands(_handle!, _countPtr!);
     _commandCount = _countPtr!.value;
     
-    // Pas de setState ici si on est appelé pendant le build du LayoutBuilder !
-    // Si c'est via LayoutBuilder, on doit juste mettre à jour les variables.
-    // Mais Flutter n'aime pas qu'on modifie l'état pendant le build.
-    // Astuce: LayoutBuilder est un builder. On peut calculer des choses mais pour que l'UI se mette à jour...
-    // Si on modifie _commands, le CustomPainter le verra s'il est reconstruit.
-    
-    // Exception: Si on appelle _performLayout depuis _loadFile, on veut setState.
-    // Si on appelle depuis LayoutBuilder, on ne veut PAS setState.
+    _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
+    _reprocessCount++;
   }
   
   void _downloadSvg() {
@@ -140,10 +133,22 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  Widget _buildBenchRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: color.withOpacity(0.7))),
+          const Spacer(),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bgColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
-    final fgColor = _isDarkMode ? Colors.white : Colors.black;
     final sidebarColor = _isDarkMode ? const Color(0xFF2D2D2D) : Colors.grey[200];
     final sidebarTextColor = _isDarkMode ? Colors.white : Colors.black;
 
@@ -226,6 +231,13 @@ class _MainScreenState extends State<MainScreen> {
                       label: const Text("Download SVG"),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  Text("Pipeline Benchmarks", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: sidebarTextColor)),
+                  const SizedBox(height: 10),
+                  _buildBenchRow("Reprocess Count", "$_reprocessCount", sidebarTextColor),
+                  _buildBenchRow("Last Pipeline", "${_lastProcessTimeMs.toStringAsFixed(2)} ms", sidebarTextColor),
+                  
                   const Spacer(),
                   const Divider(),
                   Text("Status: $_statusMessage", style: TextStyle(fontSize: 12, color: sidebarTextColor.withOpacity(0.7))),
@@ -255,32 +267,18 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Gestion du Layout automatique
                 if (_handle != null && constraints.maxWidth > 0 && (constraints.maxWidth - _lastLayoutWidth).abs() > 1.0) {
-                  // On doit différer l'exécution du layout pour ne pas bloquer le build actuel
-                  // ou modifier l'état pendant le build.
-                  // Utilisons addPostFrameCallback ou exécutons la logique "pure" C++ sans setState
-                  // Puis forçons le repaint.
+                  _performLayout(constraints.maxWidth);
                   
-                  // Option: Exécuter le C++ layout ici (c'est synchrone et rapide pour peu de pages)
-                  // _bridge.layout(_handle!, constraints.maxWidth);
-                  // _lastLayoutWidth = constraints.maxWidth;
-                  // _commands = ...
-                  // _commandCount = ...
-                  
-                  // MAIS: Si on fait ça, il faut s'assurer que le CustomPainter utilise les nouvelles valeurs.
-                  // Comme CustomPainter prend les pointeurs, ça devrait aller.
-                  
-                  // Faisons-le proprement:
-                  _lastLayoutWidth = constraints.maxWidth;
-                  _bridge.layout(_handle!, _lastLayoutWidth);
-                  _commands = _bridge.getRenderCommands(_handle!, _countPtr!);
-                  _commandCount = _countPtr!.value;
-                  
-                  // Pas de setState, mais on retourne un widget qui utilise ces nouvelles valeurs.
+                  // Planifier une mise à jour de l'UI (Sidebar stats) après la frame courante
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  });
                 }
 
-                return ClipRect( // Clip pour ne pas dessiner hors de la zone
+                return ClipRect(
                   child: Container(
                     color: bgColor,
                     child: CustomPaint(
@@ -289,9 +287,9 @@ class _MainScreenState extends State<MainScreen> {
                         commandCount: _commandCount,
                         handle: _handle,
                         bridge: _bridge,
-                        isDarkMode: _isDarkMode, // Passer le thème au painter
+                        isDarkMode: _isDarkMode,
                       ),
-                      size: Size.infinite, // Remplit tout l'espace disponible
+                      size: Size.infinite,
                     ),
                   ),
                 );
