@@ -146,6 +146,10 @@ typedef MxmlLayout = void Function(Pointer<MXMLHandle>, double);
 typedef mxml_get_height_func = Float Function(Pointer<MXMLHandle>);
 typedef MxmlGetHeight = double Function(Pointer<MXMLHandle>);
 
+// uint32_t mxml_get_glyph_codepoint(mXMLHandle* handle, mXMLGlyphId id);
+typedef mxml_get_glyph_codepoint_func = Uint32 Function(Pointer<MXMLHandle>, Uint16);
+typedef MxmlGetGlyphCodepoint = int Function(Pointer<MXMLHandle>, int);
+
 // const mXMLRenderCommandC* mxml_get_render_commands(mXMLHandle* handle, size_t* count);
 typedef mxml_get_render_commands_func = Pointer<MXMLRenderCommandC> Function(Pointer<MXMLHandle>, Pointer<Size>);
 typedef MxmlGetRenderCommands = Pointer<MXMLRenderCommandC> Function(Pointer<MXMLHandle>, Pointer<Size>);
@@ -167,6 +171,7 @@ class MXMLBridge {
   static late final MxmlLoadFile _loadFile;
   static late final MxmlLayout _layout;
   static late final MxmlGetHeight _getHeight;
+  static late final MxmlGetGlyphCodepoint _getGlyphCodepoint;
   static late final MxmlGetRenderCommands _getRenderCommands;
   static late final MxmlGetString _getString;
   static late final MxmlWriteSvgToFile _writeSvgToFile;
@@ -193,6 +198,7 @@ class MXMLBridge {
     _loadFile = _dylib.lookupFunction<mxml_load_file_func, MxmlLoadFile>('mxml_load_file');
     _layout = _dylib.lookupFunction<mxml_layout_func, MxmlLayout>('mxml_layout');
     _getHeight = _dylib.lookupFunction<mxml_get_height_func, MxmlGetHeight>('mxml_get_height');
+    _getGlyphCodepoint = _dylib.lookupFunction<mxml_get_glyph_codepoint_func, MxmlGetGlyphCodepoint>('mxml_get_glyph_codepoint');
     _getRenderCommands = _dylib.lookupFunction<mxml_get_render_commands_func, MxmlGetRenderCommands>('mxml_get_render_commands');
     _getString = _dylib.lookupFunction<mxml_get_string_func, MxmlGetString>('mxml_get_string');
     _writeSvgToFile = _dylib.lookupFunction<mxml_write_svg_to_file_func, MxmlWriteSvgToFile>('mxml_write_svg_to_file');
@@ -226,6 +232,10 @@ class MXMLBridge {
 
   double getHeight(Pointer<MXMLHandle> handle) {
     return _getHeight(handle);
+  }
+
+  int getGlyphCodepoint(Pointer<MXMLHandle> handle, int glyphId) {
+    return _getGlyphCodepoint(handle, glyphId);
   }
 
   Pointer<MXMLRenderCommandC> getRenderCommands(Pointer<MXMLHandle> handle, Pointer<Size> countOut) {

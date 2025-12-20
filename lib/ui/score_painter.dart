@@ -39,9 +39,7 @@ class ScorePainter extends CustomPainter {
           _drawLine(canvas, cmd.data.line, mainColor);
           break;
         case MXMLRenderCommandTypeC.MXML_GLYPH:
-          // TODO: Implémenter le rendu des glyphes (nécessite Font)
-          // Pour l'instant on dessine un petit cercle rouge pour debugger
-           _drawDebugPoint(canvas, cmd.data.glyph.pos, Colors.red);
+          _drawGlyph(canvas, cmd.data.glyph, mainColor);
           break;
         case MXMLRenderCommandTypeC.MXML_TEXT:
           _drawText(canvas, cmd.data.text, mainColor);
@@ -66,8 +64,72 @@ class ScorePainter extends CustomPainter {
     );
   }
 
-  void _drawDebugPoint(Canvas canvas, MXMLPointC pos, Color color) {
-     canvas.drawCircle(Offset(pos.x, pos.y), 2.0, Paint()..color = color);
+  void _drawGlyph(Canvas canvas, MXMLGlyphDataC glyphCmd, Color color) {
+    final codepoint = bridge.getGlyphCodepoint(handle!, glyphCmd.id);
+    if (codepoint == 0) {
+      // Fallback debug
+      canvas.drawCircle(Offset(glyphCmd.pos.x, glyphCmd.pos.y), 2.0, Paint()..color = Colors.red);
+      return;
+    }
+
+    final char = String.fromCharCode(codepoint);
+    
+    // Le scale est souvent utilisé pour la taille en pixels. 
+    // SMuFL Bravura : 1 staff space = 1/4 em. 
+    // Si scale = taille en pixels d'un staff space ? Ou facteur global ?
+    // Supposons que glyphCmd.scale est la taille de la fonte en pixels ou un facteur.
+    // Dans mxml-svg-backend: scale(arg.scale, -arg.scale).
+    // Si arg.scale est grand (ex: 20), c'est la taille.
+    
+    // Testons avec scale directement comme fontSize.
+    // Attention: SMuFL glyphs are usually designed for 1000 units per em.
+    // Il faut probablement ajuster la taille.
+    // Si le moteur C++ envoie la taille en pixels, on l'utilise.
+    
+    final textStyle = TextStyle(
+      fontFamily: 'Bravura',
+      fontSize: glyphCmd.scale.abs() * 4.0, // Facteur empirique, SMuFL est souvent petit. A ajuster.
+      color: color,
+      height: 1.0, // Important pour le positionnement précis
+    );
+
+    final textSpan = TextSpan(text: char, style: textStyle);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    // Gestion de l'inversion Y (si scale < 0)
+    // Dans mxml-svg-backend: transform="translate(x, y) scale(s, -s)"
+    // Cela signifie que l'origine SVG est en bas (ou haut inversé).
+    
+    canvas.save();
+    canvas.translate(glyphCmd.pos.x, glyphCmd.pos.y);
+    
+    // Si scale est négatif, le moteur demande un flip Y.
+    // En Flutter, Y est vers le bas.
+    // Si le moteur C++ fonctionne en Y vers le haut (Cartésien), et que Flutter est Y vers le bas :
+    // il faut probablement inverser.
+    
+    if (glyphCmd.scale < 0) {
+       canvas.scale(1.0, -1.0);
+    }
+    
+    // SMuFL origin is the baseline of the staff.
+    // TextPainter draws from top-left of the bounding box usually, but can position at baseline.
+    // We want to draw at (0,0) relative to the translated position.
+    // Offset correction might be needed depending on TextPainter alignment.
+    // Try centering for now or drawing at 0,0 - metrics.ascent
+    
+    // offset to align baseline to 0,0
+    // textPainter.paint(canvas, Offset(0, -textPainter.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
+    
+    // Pour l'instant, dessinons à 0,0 et voyons. 
+    // Le SVG backend fait translate(x, y). Donc (x,y) est l'origine du glyphe.
+    textPainter.paint(canvas, Offset.zero); // Offset(-textPainter.width / 2, -textPainter.height / 2) ?
+    
+    canvas.restore();
   }
 
   void _drawText(Canvas canvas, MXMLTextDataC textCmd, Color color) {
