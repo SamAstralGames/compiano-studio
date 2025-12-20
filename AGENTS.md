@@ -7,7 +7,7 @@ Références de vérité (ne pas lire par défaut ; n’ouvrir que si nécessair
 
 ## Contexte & quotas (TRÈS IMPORTANT)
 - Ne scanne jamais tout le repo.
-- Ignore toujours : build*/, dist/, node_modules/, .git/, third_party/, native/mxmlconverter, assets/, docs/ (sauf demande explicite).
+- Ignore toujours : build*/, dist/, node_modules/, .git/, third_party/, assets/, docs/ (sauf demande explicite).
 
 ## regles de codage
 - Eviter les magic number et les valeur en dur pour rafistoler, demander a l'utilisateur
