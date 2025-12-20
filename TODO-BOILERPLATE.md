@@ -57,12 +57,12 @@ mxmlconverter-boilerplate/
 ### Phase 1 : "Hello Score" (Integration Basics)
 **But** : Valider la chaîne de compilation et l'affichage statique.
 
-- [ ] **Build System** : Configurer CMake pour générer `libmxmlconverter.so` (Linux/Android) et `.dylib` (macOS/iOS).
-- [ ] **FFI Bridge** : Mapper les fonctions C de base :
-    - `mxml_create_context()`
+- [x] **Build System** : Configurer CMake pour générer `libmxmlconverter.so` (Linux/Android) et `.dylib` (macOS/iOS).
+- [x] **FFI Bridge** : Mapper les fonctions C de base :
+    - `mxml_create()`
     - `mxml_load_file(path)`
-    - `mxml_render_svg()` (Mode simple pour commencer)
-    - `mxml_destroy_context()`
+    - `mxml_get_render_commands()`
+    - `mxml_destroy()`
 - [ ] **UI** : Afficher le SVG retourné par le moteur dans un `flutter_svg` ou `WebView` (temporaire).
 
 ### Phase 2 : Native Canvas Rendering (Zero-Copy)
