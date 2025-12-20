@@ -51,7 +51,7 @@ set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Add mxmlconverter submodule
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/mxmlconverter" "${CMAKE_CURRENT_BINARY_DIR}/mxmlconverter")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mxmlconverter" "${CMAKE_CURRENT_BINARY_DIR}/mxmlconverter")
 
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
