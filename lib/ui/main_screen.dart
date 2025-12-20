@@ -31,6 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   
   // Layout State
   double _lastLayoutWidth = 0.0;
+  double _contentHeight = 0.0;
   
   // Benchmarks
   int _reprocessCount = 0;
@@ -119,6 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     
     _commands = _bridge.getRenderCommands(_handle!, _countPtr!);
     _commandCount = _countPtr!.value;
+    _contentHeight = _bridge.getHeight(_handle!);
     
     _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
     _reprocessCount++;
@@ -281,15 +283,18 @@ class _MainScreenState extends State<MainScreen> {
                 return ClipRect(
                   child: Container(
                     color: bgColor,
-                    child: CustomPaint(
-                      painter: ScorePainter(
-                        commands: _commands,
-                        commandCount: _commandCount,
-                        handle: _handle,
-                        bridge: _bridge,
-                        isDarkMode: _isDarkMode,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: CustomPaint(
+                        painter: ScorePainter(
+                          commands: _commands,
+                          commandCount: _commandCount,
+                          handle: _handle,
+                          bridge: _bridge,
+                          isDarkMode: _isDarkMode,
+                        ),
+                        size: Size(constraints.maxWidth, _contentHeight > 0 ? _contentHeight : constraints.maxHeight),
                       ),
-                      size: Size.infinite,
                     ),
                   ),
                 );
