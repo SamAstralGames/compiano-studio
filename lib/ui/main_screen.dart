@@ -1127,6 +1127,13 @@ class _MainScreenState extends State<MainScreen> {
             boolSetter: _bridge.setLineBreakingEnableBreakFeatures,
           ),
           OptionItem(
+            key: "line_breaking_enable_system_level_spacing",
+            label: "Enable System Level Spacing",
+            type: OptionValueType.boolean,
+            boolGetter: _bridge.getLineBreakingEnableSystemLevelSpacing,
+            boolSetter: _bridge.setLineBreakingEnableSystemLevelSpacing,
+          ),
+          OptionItem(
             key: "line_breaking_max_measures_per_line",
             label: "Max Measures Per Line",
             type: OptionValueType.integer,

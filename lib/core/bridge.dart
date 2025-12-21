@@ -341,6 +341,8 @@ typedef mxml_options_set_line_breaking_enable_two_pass_optimization_func = Void 
 typedef mxml_options_get_line_breaking_enable_two_pass_optimization_func = Int32 Function(Pointer<MXMLOptions>);
 typedef mxml_options_set_line_breaking_enable_break_features_func = Void Function(Pointer<MXMLOptions>, Int32);
 typedef mxml_options_get_line_breaking_enable_break_features_func = Int32 Function(Pointer<MXMLOptions>);
+typedef mxml_options_set_line_breaking_enable_system_level_spacing_func = Void Function(Pointer<MXMLOptions>, Int32);
+typedef mxml_options_get_line_breaking_enable_system_level_spacing_func = Int32 Function(Pointer<MXMLOptions>);
 typedef mxml_options_set_line_breaking_max_measures_per_line_func = Void Function(Pointer<MXMLOptions>, Int32);
 typedef mxml_options_get_line_breaking_max_measures_per_line_func = Int32 Function(Pointer<MXMLOptions>);
 
@@ -683,6 +685,8 @@ class MXMLBridge {
   static late final OptionsGetBool _getLineBreakingEnableTwoPassOptimization;
   static late final OptionsSetBool _setLineBreakingEnableBreakFeatures;
   static late final OptionsGetBool _getLineBreakingEnableBreakFeatures;
+  static late final OptionsSetBool _setLineBreakingEnableSystemLevelSpacing;
+  static late final OptionsGetBool _getLineBreakingEnableSystemLevelSpacing;
   static late final OptionsSetInt _setLineBreakingMaxMeasuresPerLine;
   static late final OptionsGetInt _getLineBreakingMaxMeasuresPerLine;
   static late final OptionsSetBool _setNotationAutoBeam;
@@ -968,6 +972,8 @@ class MXMLBridge {
     _getLineBreakingEnableTwoPassOptimization = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_two_pass_optimization_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_two_pass_optimization');
     _setLineBreakingEnableBreakFeatures = _dylib.lookupFunction<mxml_options_set_line_breaking_enable_break_features_func, OptionsSetBool>('mxml_options_set_line_breaking_enable_break_features');
     _getLineBreakingEnableBreakFeatures = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_break_features_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_break_features');
+    _setLineBreakingEnableSystemLevelSpacing = _dylib.lookupFunction<mxml_options_set_line_breaking_enable_system_level_spacing_func, OptionsSetBool>('mxml_options_set_line_breaking_enable_system_level_spacing');
+    _getLineBreakingEnableSystemLevelSpacing = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_system_level_spacing_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_system_level_spacing');
     _setLineBreakingMaxMeasuresPerLine = _dylib.lookupFunction<mxml_options_set_line_breaking_max_measures_per_line_func, OptionsSetInt>('mxml_options_set_line_breaking_max_measures_per_line');
     _getLineBreakingMaxMeasuresPerLine = _dylib.lookupFunction<mxml_options_get_line_breaking_max_measures_per_line_func, OptionsGetInt>('mxml_options_get_line_breaking_max_measures_per_line');
     _setNotationAutoBeam = _dylib.lookupFunction<mxml_options_set_notation_auto_beam_func, OptionsSetBool>('mxml_options_set_notation_auto_beam');
@@ -1791,6 +1797,16 @@ class MXMLBridge {
   // Definit enable_break_features.
   void setLineBreakingEnableBreakFeatures(Pointer<MXMLOptions> opts, bool value) {
     _setLineBreakingEnableBreakFeatures(opts, value ? _boolTrue : _boolFalse);
+  }
+
+  // Recupere enable_system_level_spacing.
+  bool getLineBreakingEnableSystemLevelSpacing(Pointer<MXMLOptions> opts) {
+    return _getLineBreakingEnableSystemLevelSpacing(opts) == _boolTrue;
+  }
+
+  // Definit enable_system_level_spacing.
+  void setLineBreakingEnableSystemLevelSpacing(Pointer<MXMLOptions> opts, bool value) {
+    _setLineBreakingEnableSystemLevelSpacing(opts, value ? _boolTrue : _boolFalse);
   }
 
   // Recupere max_measures_per_line.
