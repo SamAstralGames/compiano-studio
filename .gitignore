@@ -46,3 +46,5 @@ app.*.map.json
 
 
 third_party/
+!third_party/
+!third_party/mxmlconverter/
