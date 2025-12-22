@@ -16,9 +16,10 @@ class BenchItem {
 // Layer du pipeline avec ses benchmarks.
 class BenchLayer {
   final String name;
+  final double totalMs;
   final List<BenchItem> items;
 
-  const BenchLayer({required this.name, required this.items});
+  const BenchLayer({required this.name, required this.totalMs, required this.items});
 }
 
 // Types de valeur d'option.
@@ -94,6 +95,7 @@ class _MainScreenState extends State<MainScreen> {
   // Theme State
   bool _isDarkMode = false;
   static const double _benchTextSize = 12.0;
+  static const double _benchHeaderSpacing = 8.0;
   static const double _optionSectionBottomPadding = 12.0;
   static const double _optionSectionTitleSpacing = 6.0;
   static const double _optionItemVerticalPadding = 6.0;
@@ -269,36 +271,32 @@ class _MainScreenState extends State<MainScreen> {
     return [
       BenchLayer(
         name: "Input",
+        totalMs: bench.inputTotalMs,
         items: [
           BenchItem(label: "XML Load", valueMs: bench.inputXmlLoadMs),
           BenchItem(label: "Model Build", valueMs: bench.inputModelBuildMs),
-          BenchItem(label: "Input Total", valueMs: bench.inputTotalMs),
         ],
       ),
       BenchLayer(
         name: "Layout",
+        totalMs: bench.layoutTotalMs,
         items: [
           BenchItem(label: "Metrics", valueMs: bench.layoutMetricsMs),
           BenchItem(label: "Line Breaking", valueMs: bench.layoutLineBreakingMs),
-          BenchItem(label: "Layout Total", valueMs: bench.layoutTotalMs),
         ],
       ),
       BenchLayer(
         name: "Render",
+        totalMs: bench.renderCommandsMs,
         items: [
           BenchItem(label: "Commands", valueMs: bench.renderCommandsMs),
         ],
       ),
       BenchLayer(
         name: "Export",
+        totalMs: bench.exportSerializeSvgMs,
         items: [
           BenchItem(label: "Serialize SVG", valueMs: bench.exportSerializeSvgMs),
-        ],
-      ),
-      BenchLayer(
-        name: "Pipeline",
-        items: [
-          BenchItem(label: "Pipeline Total", valueMs: bench.pipelineTotalMs),
         ],
       ),
     ];
@@ -326,13 +324,22 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final tiles = <Widget>[];
-    // On ajoute un tile par layer dans l'ordre du pipeline.
+    // On ajoute un tile par section dans l'ordre du pipeline.
     for (final layer in _benchLayers) {
       tiles.add(
         ExpansionTile(
-          title: Text(layer.name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+          title: Row(
+            children: [
+              Text(layer.name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              Text(
+                "${layer.totalMs.toStringAsFixed(2)} ms",
+                style: TextStyle(fontSize: _benchTextSize, fontWeight: FontWeight.bold, color: textColor),
+              ),
+            ],
+          ),
           children: [
-            // On liste les items du layer.
+            // On liste les items de detail du layer.
             for (final item in layer.items)
               _buildBenchRow(item.label, "${item.valueMs.toStringAsFixed(2)} ms", textColor),
           ],
@@ -340,7 +347,27 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    return Column(children: tiles);
+    return ExpansionTile(
+      title: Row(
+        children: [
+          Text(
+            "Pipeline Bench",
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+          ),
+          const Spacer(),
+          Text(
+            "${_pipelineBench!.pipelineTotalMs.toStringAsFixed(2)} ms",
+            style: TextStyle(fontSize: _benchTextSize, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(width: _benchHeaderSpacing),
+          Text(
+            "x$_reprocessCount",
+            style: TextStyle(fontSize: _benchTextSize, color: textColor.withOpacity(0.7)),
+          ),
+        ],
+      ),
+      children: tiles,
+    );
   }
 
   // Applique des changements d'options et relance le process si possible.
