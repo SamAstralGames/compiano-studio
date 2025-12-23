@@ -1,110 +1,108 @@
-# TODO — Projet : mXMLConverter Boilerplate (Flutter FFI)
+# TODO — Roadmap Projet : Compiano Studio
 
-**Objectif** : Créer une application de référence ("Reference Implementation") minimale et propre, démontrant l'intégration complète de `mXMLConverter` dans un environnement Flutter via FFI. Ce projet servira de base ("Template") pour toute future application (Mobile, Desktop).
+Ce document trace la route pour le développement de **Compiano Studio**, une application d'apprentissage du piano assistée par IA, basée sur le moteur de rendu `mXMLConverter`.
 
----
-
-## 1. Architecture
-
-L'application suit une architecture en couches stricte pour séparer l'UI du moteur C++.
-
-```
-[ Flutter UI (Widgets) ]
-       |
-       v
-[ Controller (State Management) ] <--- (Gère l'état : Loading, Error, Playing)
-       |
-       v
-[ mXML Bridge (Dart) ] <--- (Interface Dart pure, cache les pointeurs)
-       |
-       v
-[ dart:ffi ]
-       |
-       v
-[ C-API Wrapper (extern "C") ] <--- (Expose mXMLConverter en C pur)
-       |
-       v
-[ mXMLConverter (C++ Core) ]
-```
+**Légende** :
+- [x] Fait
+- [~] En cours / Partiel
+- [ ] À faire
 
 ---
 
-## 2. Structure du Projet (Proposée)
+## 1. Epic : Core Engine & Rendering (Fondations)
+**Objectif** : Stabiliser l'intégration du moteur C++ via FFI et garantir un rendu performant et fidèle.
 
-```text
-mxmlconverter-boilerplate/
-├── lib/
-│   ├── core/
-│   │   ├── bridge.dart       # Définitions FFI (généré ou manuel)
-│   │   └── native_lib.dart   # Chargement de la dylib (.so/.dll)
-│   ├── logic/
-│   │   └── score_controller.dart # Business Logic (Load, Render)
-│   ├── ui/
-│   │   ├── score_widget.dart # Widget d'affichage (CustomPainter)
-│   │   └── main.dart
-│   └── main.dart
-├── native/
-│   ├── CMakeLists.txt        # Build du wrapper C++
-│   └── src/                  # Code glue (C-API implementation)
-├── assets/                   # Fichiers XML de démo
-└── pubspec.yaml
-```
+### 1.1. Feature : FFI Bridge & Binding
+- [x] **Initialisation** : Chargement des bibliothèques dynamiques (`.so`, `.dll`, `.dylib`) selon l'OS.
+- [x] **Mapping C-API** :
+    - [x] Lifecycle (`create`, `destroy`).
+    - [x] I/O (`load_file`, `load_string`).
+    - [x] Rendering (`get_render_commands`, `get_height`).
+    - [x] Options (Mapping exhaustif des options de layout, notation, couleurs).
+- [ ] **Optimisation** :
+    - [ ] Implémenter un mécanisme de *callback* pour les logs C++ vers Dart.
+    - [ ] Gestion robuste des erreurs (codes de retour vs exceptions Dart).
 
----
-
-## 3. Roadmap Fonctionnelle
-
-### Phase 1 : "Hello Score" (Integration Basics)
-**But** : Valider la chaîne de compilation et l'affichage statique.
-
-- [x] **Build System** : Configurer CMake pour générer `libmxmlconverter.so` (Linux/Android) et `.dylib` (macOS/iOS).
-- [x] **FFI Bridge** : Mapper les fonctions C de base :
-    - `mxml_create()`
-    - `mxml_load_file(path)`
-    - `mxml_get_render_commands()`
-    - `mxml_destroy()`
-- [x] **UI** : Implémentation via CustomPainter directement (Skipped SVG display).
-
-### Phase 2 : Native Canvas Rendering (Zero-Copy)
-**But** : Performance maximale (60fps). Ne plus passer par du texte SVG.
-
-- [x] **C-API** : Exposer `mxml_get_render_commands()` (Buffer binaire de commandes graphiques) et `mxml_write_svg_to_file`.
-- [x] **Dart Parser** : Lire le buffer binaire (structs `RenderCommand`) en Dart.
-- [x] **CustomPainter** : Implémenter un `ScorePainter` qui dessine les commandes (MoveTo, LineTo, CubicTo, Text) directement sur le Canvas Flutter.
-- [ ] **Benchmark** : Mesurer le temps de rendu (vs SVG).
-
-### Phase 3 : Interactivité & Chunking
-**But** : Utiliser les nouvelles Epics 15 (Chunking) et 16 (Skyline).
-
-- [ ] **Viewport Awareness** : Envoyer la taille du widget (`size.width`, `size.height`) au moteur C++.
-- [ ] **Pan/Zoom** : Gérer `GestureDetector` en Flutter et mapper vers la caméra du moteur (ou gérer la transfo côté Flutter).
-- [ ] **Infinite Scroll** : Implémenter la boucle de demande de Chunks (`RenderRange`) au fur et à mesure du scroll.
-
-### Phase 4 : Playback & Audio (Optionnel)
-- [ ] **Rhythm API** : Récupérer les événements rythmiques (Epic 12).
-- [ ] **Audio Engine** : Jouer un métronome ou des sons basiques (via `flutter_soloud` ou autre) synchronisés avec le curseur.
+### 1.2. Feature : Pipeline de Rendu Graphique
+- [x] **Canvas Painter** : Dessin des primitives (Lignes, Glyphes SMuFL, Texte) via `CustomPainter`.
+- [x] **Gestion des Fonts** : Chargement correct de la police musicale (Bravura/Petaluma).
+- [~] **Layout Réactif** :
+    - [x] Recalcul du layout au redimensionnement de la fenêtre.
+    - [ ] Debounce/Throttle des appels FFI lors du resize pour éviter le lag.
+- [ ] **Performance** :
+    - [ ] Benchmark comparatif SVG vs Canvas (via `mxml_get_pipeline_bench`).
+    - [ ] Implémentation du *Partial Repaint* (ne redessiner que ce qui change).
 
 ---
 
-## 4. Interfaces C-API requises (Specs)
+## 2. Epic : Interaction & Navigation
+**Objectif** : Rendre la partition vivante et navigable pour l'utilisateur.
 
-Le core C++ doit exposer ces signatures (dans `mxml_c_api.h`) :
+### 2.1. Feature : Navigation dans la Partition
+- [ ] **Scroll & Zoom** :
+    - [ ] Gérer le scroll infini vertical ou horizontal (selon le layout).
+    - [ ] Pinch-to-zoom (mapper vers `mxml_set_zoom` ou transformation Canvas).
+- [ ] **Pagination** : Support du mode "Page View" vs "Continuous View".
 
-```c
-typedef void* MXMLContext;
+### 2.2. Feature : Virtual Piano & Feedback
+- [x] **Clavier Virtuel** : Affichage d'un clavier en bas d'écran.
+- [~] **Visualisation MIDI** :
+    - [x] Affichage des notes actives (Demo random).
+    - [ ] Connexion réelle aux événements MIDI (Input périphérique).
+    - [ ] Mise en surbrillance des notes jouées sur la partition (Curseur).
 
-// Lifecycle
-MXMLContext mxml_create();
-void mxml_destroy(MXMLContext ctx);
+---
 
-// I/O
-bool mxml_load_string(MXMLContext ctx, const char* xml_data);
+## 3. Epic : Audio & Playback
+**Objectif** : Permettre à l'élève d'écouter le morceau et de jouer avec un accompagnement.
 
-// Configuration
-void mxml_set_option(MXMLContext ctx, const char* key, const char* value);
-void mxml_set_viewport(MXMLContext ctx, int w, int h);
+### 3.1. Feature : Moteur Audio
+- [ ] **Synthétiseur** : Intégration de `flutter_soloud` ou `flutter_midi_pro` pour jouer les notes.
+- [ ] **Séquenceur** :
+    - [ ] Parser les événements temporels du MusicXML (si exposés par la lib ou via parsing Dart).
+    - [ ] Synchroniser le curseur de lecture avec le temps audio.
 
-// Rendering
-// Retourne un pointeur vers un tableau de RenderCommands
-const RenderCommand* mxml_get_commands(MXMLContext ctx, int* count);
-```
+### 3.2. Feature : Outils de Pratique
+- [ ] **Métronome** : Audio + Visuel.
+- [ ] **Boucle (Loop)** : Sélectionner une plage de mesures (A-B repeat).
+- [ ] **Tempo Variable** : Ralentir sans changer la hauteur (si audio) ou via MIDI.
+
+---
+
+## 4. Epic : AI-Assisted Learning (Cursus Intelligent)
+**Objectif** : Créer de la valeur ajoutée pédagogique grâce à l'analyse de données et l'IA.
+
+### 4.1. Feature : Analyse de Difficulté (Static Analysis)
+*Analyse structurelle du fichier XML avant même de jouer.*
+- [ ] **Algorithme de Complexité** :
+    - [ ] Calculer la densité de notes par seconde.
+    - [ ] Détecter les intervalles complexes (octaves, grands sauts).
+    - [ ] Analyser la complexité rythmique (syncopes, triolets).
+    - [ ] Identifier la tonalité et les modulations.
+- [ ] **Scoring** : Attribuer un niveau (1-10 ou Débutant/Intermédiaire/Avancé) automatiquement.
+
+### 4.2. Feature : Générateur de Routine de Travail (AI Planner)
+*Création d'un plan de travail personnalisé pour un morceau donné.*
+- [ ] **Segmentation** : Découper le morceau en sections logiques (Intro, Thème A, Thème B) via analyse des barres de mesure et répétitions.
+- [ ] **Routine Generator** :
+    - [ ] "Jour 1 : Mains séparées sur les mesures 1-8".
+    - [ ] "Jour 2 : Mains ensemble tempo lent (50%)".
+    - [ ] "Jour 3 : Travail des nuances".
+- [ ] **Intégration LLM (Optionnel)** : Utiliser un modèle (Gemini/GPT) pour générer des conseils textuels basés sur les métadonnées du compositeur et du style (ex: "Pour du Chopin, concentrez-vous sur le Rubato").
+
+### 4.3. Feature : Suivi de Progression (Student Profiling)
+- [ ] **Ecoute Active (Pitch Detection)** : Utiliser le microphone pour détecter si l'élève joue les bonnes notes (via `flutter_fft` ou autre).
+- [ ] **Heatmap d'Erreurs** : Identifier les mesures où l'élève se trompe le plus souvent.
+- [ ] **Adaptation du Cursus** : Suggérer des exercices techniques (Hanon, Czerny) spécifiques aux faiblesses détectées (ex: faiblesse main gauche -> Exercice MG).
+
+---
+
+## 5. Epic : Architecture & Qualité
+
+### 5.1. Feature : State Management
+- [ ] **Migration Controller** : Sortir la logique de `_ScorePageState` vers un `ScoreController` ou BLoC/Riverpod.
+- [ ] **Repository Pattern** : Abstraire l'accès aux fichiers (Local, Assets, Cloud).
+
+### 5.2. Feature : Tests
+- [ ] **Unit Tests** : Tester le parsing des commandes FFI en Dart.
+- [ ] **Integration Tests** : Vérifier que le chargement d'un XML ne crash pas l'app.

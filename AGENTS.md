@@ -1,4 +1,5 @@
 # AGENTS.md — mXMLConverter-boilerplate (Codex Agent)
+@ARCHITECTURE.md
 
 ## Mission
 Références de vérité (ne pas lire par défaut ; n’ouvrir que si nécessaire)
@@ -10,6 +11,7 @@ Références de vérité (ne pas lire par défaut ; n’ouvrir que si nécessair
 - Ignore toujours : build*/, dist/, node_modules/, .git/, assets/, docs/ (sauf demande explicite).
 
 ## regles de codage
+@BEST-PRACTICES.md
 - Eviter les magic number et les valeur en dur pour rafistoler, demander a l'utilisateur
 
 ## Politique de réponse (éviter la verbosité)
