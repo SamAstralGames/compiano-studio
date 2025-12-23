@@ -51,6 +51,8 @@ set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
 # Add mxmlconverter submodule
+# Force DEBUGLEVEL=2 for verbose logging in the embedded library.
+set(DEBUGLEVEL "2" CACHE STRING "Compile-time debug log level: 0..3" FORCE)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mxmlconverter" "${CMAKE_CURRENT_BINARY_DIR}/mxmlconverter")
 
 # System-level dependencies.
