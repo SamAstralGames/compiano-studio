@@ -106,3 +106,48 @@ Ce document trace la route pour le développement de **Compiano Studio**, une ap
 ### 5.2. Feature : Tests
 - [ ] **Unit Tests** : Tester le parsing des commandes FFI en Dart.
 - [ ] **Integration Tests** : Vérifier que le chargement d'un XML ne crash pas l'app.
+
+---
+
+## 6. Structure de Répertoire Cible (Refactoring)
+
+Pour aligner le projet avec les `BEST-PRACTICE.md`, voici la structure cible à atteindre progressivement.
+
+```text
+lib/
+├── core/                       # Fondations techniques (Bas niveau)
+│   ├── ffi/                    # Découpage du bridge actuel
+│   │   ├── mxml_types.dart     # Structs & Typedefs
+│   │   ├── mxml_signatures.dart # Signatures C
+│   │   ├── mxml_library.dart   # DynamicLibrary.open
+│   │   └── bridge.dart         # Façade haut niveau (Singleton)
+│   ├── errors/                 # Exceptions (MxmlException)
+│   └── constants.dart          # Config globale
+├── logic/                      # Business Logic (Feature-based)
+│   ├── score/                  # Feature: Partition
+│   │   ├── score_controller.dart
+│   │   └── score_repository.dart
+│   ├── audio/                  # Feature: Audio & MIDI
+│   │   ├── midi_service.dart
+│   │   └── audio_engine.dart
+│   └── learning/               # Feature: IA & Cursus
+│       ├── difficulty_analyzer.dart
+│       └── practice_planner.dart
+├── ui/                         # Interface Utilisateur
+│   ├── common/                 # Widgets génériques (Design System)
+│   │   ├── buttons/            # Boutons réutilisables
+│   │   └── layout/             # Wrappers (SplitView, Sidebar)
+│   ├── components/             # Widgets Métier (Réutilisables)
+│   │   ├── piano/              # Clavier Virtuel (PianoKeyboard)
+│   │   └── score/              # Partition (ScoreViewport, Minimap)
+│   ├── painters/               # Rendu Bas Niveau (Canvas)
+│   │   ├── score_painter.dart  # Rendu principal FFI
+│   │   └── cursor_painter.dart # Curseur de lecture
+│   ├── pages/                  # Écrans Complets (Scaffolds)
+│   │   ├── library_page.dart   # Explorateur de fichiers
+│   │   └── score_page.dart     # Studio principal
+│   └── theme/                  # Styles & Palettes
+│       ├── app_theme.dart
+│       └── app_colors.dart
+└── utils/                      # Outils (Loggers, Formatters)
+```

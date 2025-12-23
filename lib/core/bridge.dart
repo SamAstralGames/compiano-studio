@@ -1,553 +1,14 @@
 import 'dart:ffi';
-import 'dart:io';
 import 'package:ffi/ffi.dart';
 
-// --- Type Definitions ---
-
-// Handle opaque pour l'instance du convertisseur
-base class MXMLHandle extends Opaque {}
-// Handle opaque pour les options
-base class MXMLOptions extends Opaque {}
-
-// Types de base
-typedef MXMLStringId = Uint32;
-typedef MXMLGlyphId = Uint16;
-
-// Structs
-base class MXMLPointC extends Struct {
-  @Float()
-  external double x;
-
-  @Float()
-  external double y;
-}
-
-base class MXMLRectC extends Struct {
-  @Float()
-  external double x;
-
-  @Float()
-  external double y;
-
-  @Float()
-  external double width;
-
-  @Float()
-  external double height;
-}
-
-// Structures de données des commandes
-base class MXMLGlyphDataC extends Struct {
-  @Uint16()
-  external int id;
-
-  external MXMLPointC pos;
-
-  @Float()
-  external double scale;
-}
-
-base class MXMLLineDataC extends Struct {
-  external MXMLPointC p1;
-  external MXMLPointC p2;
-
-  @Float()
-  external double thickness;
-}
-
-base class MXMLTextDataC extends Struct {
-  @Uint32()
-  external int textId;
-
-  external MXMLPointC pos;
-
-  @Float()
-  external double fontSize;
-
-  @Int8()
-  external int italic; // 1 = true, 0 = false
-}
-
-base class MXMLDebugRectDataC extends Struct {
-  external MXMLRectC rect;
-
-  @Uint32()
-  external int cssClassId;
-
-  @Uint32()
-  external int strokeId;
-
-  @Float()
-  external double strokeWidth;
-
-  @Uint32()
-  external int fillId;
-
-  @Float()
-  external double opacity;
-}
-
-base class MXMLPathDataC extends Struct {
-  @Uint32()
-  external int dId;
-
-  @Uint32()
-  external int cssClassId;
-
-  @Uint32()
-  external int fillId;
-
-  @Float()
-  external double opacity;
-}
-
-// Benchmarks pipeline (millisecondes), regroupés par layer.
-base class MXMLPipelineBenchC extends Struct {
-  @Float()
-  external double inputXmlLoadMs;
-
-  @Float()
-  external double inputModelBuildMs;
-
-  @Float()
-  external double inputTotalMs;
-
-  @Float()
-  external double layoutMetricsMs;
-
-  @Float()
-  external double layoutLineBreakingMs;
-
-  @Float()
-  external double layoutTotalMs;
-
-  @Float()
-  external double renderCommandsMs;
-
-  @Float()
-  external double exportSerializeSvgMs;
-
-  @Float()
-  external double pipelineTotalMs;
-}
-
-// Enum simulation
-class MXMLRenderCommandTypeC {
-  static const int MXML_GLYPH = 0;
-  static const int MXML_LINE = 1;
-  static const int MXML_TEXT = 2;
-  static const int MXML_DEBUG_RECT = 3;
-  static const int MXML_PATH = 4;
-}
-
-// Union pour RenderCommand
-base class MXMLRenderCommandUnion extends Union {
-  external MXMLGlyphDataC glyph;
-  external MXMLLineDataC line;
-  external MXMLTextDataC text;
-  external MXMLDebugRectDataC debugRect;
-  external MXMLPathDataC path;
-}
-
-base class MXMLRenderCommandC extends Struct {
-  @Uint8()
-  external int type;
-
-  external MXMLRenderCommandUnion data;
-}
-
-// --- FFI Signatures ---
-
-// mXMLHandle* mxml_create();
-typedef mxml_create_func = Pointer<MXMLHandle> Function();
-typedef MxmlCreate = Pointer<MXMLHandle> Function();
-
-// void mxml_destroy(mXMLHandle* handle);
-typedef mxml_destroy_func = Void Function(Pointer<MXMLHandle>);
-typedef MxmlDestroy = void Function(Pointer<MXMLHandle>);
-
-// int mxml_load_file(mXMLHandle* handle, const char* path);
-typedef mxml_load_file_func = Int32 Function(Pointer<MXMLHandle>, Pointer<Utf8>);
-typedef MxmlLoadFile = int Function(Pointer<MXMLHandle>, Pointer<Utf8>);
-
-// void mxml_layout(mXMLHandle* handle, float width);
-typedef mxml_layout_func = Void Function(Pointer<MXMLHandle>, Float);
-typedef MxmlLayout = void Function(Pointer<MXMLHandle>, double);
-
-// float mxml_get_height(mXMLHandle* handle);
-typedef mxml_get_height_func = Float Function(Pointer<MXMLHandle>);
-typedef MxmlGetHeight = double Function(Pointer<MXMLHandle>);
-
-// uint32_t mxml_get_glyph_codepoint(mXMLHandle* handle, mXMLGlyphId id);
-typedef mxml_get_glyph_codepoint_func = Uint32 Function(Pointer<MXMLHandle>, Uint16);
-typedef MxmlGetGlyphCodepoint = int Function(Pointer<MXMLHandle>, int);
-
-// const mXMLRenderCommandC* mxml_get_render_commands(mXMLHandle* handle, size_t* count);
-typedef mxml_get_render_commands_func = Pointer<MXMLRenderCommandC> Function(Pointer<MXMLHandle>, Pointer<Size>);
-typedef MxmlGetRenderCommands = Pointer<MXMLRenderCommandC> Function(Pointer<MXMLHandle>, Pointer<Size>);
-
-// const char* mxml_get_string(mXMLHandle* handle, mXMLStringId id);
-typedef mxml_get_string_func = Pointer<Utf8> Function(Pointer<MXMLHandle>, Uint32);
-typedef MxmlGetString = Pointer<Utf8> Function(Pointer<MXMLHandle>, int);
-
-// int mxml_write_svg_to_file(mXMLHandle* handle, const char* filepath);
-typedef mxml_write_svg_to_file_func = Int32 Function(Pointer<MXMLHandle>, Pointer<Utf8>);
-typedef MxmlWriteSvgToFile = int Function(Pointer<MXMLHandle>, Pointer<Utf8>);
-
-// const mXMLPipelineBenchC* mxml_get_pipeline_bench(mXMLHandle* handle);
-typedef mxml_get_pipeline_bench_func = Pointer<MXMLPipelineBenchC> Function(Pointer<MXMLHandle>);
-typedef MxmlGetPipelineBench = Pointer<MXMLPipelineBenchC> Function(Pointer<MXMLHandle>);
-
-// --- Options FFI Signatures ---
-
-// mxml_options* mxml_options_create();
-typedef mxml_options_create_func = Pointer<MXMLOptions> Function();
-typedef MxmlOptionsCreate = Pointer<MXMLOptions> Function();
-
-// void mxml_options_destroy(mxml_options* opts);
-typedef mxml_options_destroy_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsDestroy = void Function(Pointer<MXMLOptions>);
-
-// Presets
-typedef mxml_options_apply_standard_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsApplyStandard = void Function(Pointer<MXMLOptions>);
-typedef mxml_options_apply_piano_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsApplyPiano = void Function(Pointer<MXMLOptions>);
-typedef mxml_options_apply_piano_pedagogic_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsApplyPianoPedagogic = void Function(Pointer<MXMLOptions>);
-typedef mxml_options_apply_compact_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsApplyCompact = void Function(Pointer<MXMLOptions>);
-typedef mxml_options_apply_print_func = Void Function(Pointer<MXMLOptions>);
-typedef MxmlOptionsApplyPrint = void Function(Pointer<MXMLOptions>);
-
-// Rendering Options (bool)
-typedef mxml_options_set_rendering_draw_title_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_title_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_part_names_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_part_names_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_measure_numbers_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_measure_numbers_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_measure_numbers_only_at_system_start_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_measure_numbers_only_at_system_start_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_measure_numbers_begin_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_measure_numbers_begin_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_measure_number_interval_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_measure_number_interval_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_time_signatures_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_time_signatures_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_key_signatures_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_key_signatures_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_fingerings_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_fingerings_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_slurs_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_slurs_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_pedals_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_pedals_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_dynamics_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_dynamics_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_wedges_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_wedges_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_lyrics_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_lyrics_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_credits_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_credits_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_composer_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_composer_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_rendering_draw_lyricist_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_rendering_draw_lyricist_func = Int32 Function(Pointer<MXMLOptions>);
-
-// Layout Options
-typedef mxml_options_set_layout_page_format_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_layout_page_format_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_use_fixed_canvas_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_layout_use_fixed_canvas_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_fixed_canvas_width_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_fixed_canvas_width_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_fixed_canvas_height_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_fixed_canvas_height_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_page_height_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_page_height_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_page_margin_left_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_page_margin_left_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_page_margin_right_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_page_margin_right_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_page_margin_top_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_page_margin_top_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_page_margin_bottom_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_page_margin_bottom_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_system_spacing_min_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_system_spacing_min_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_system_spacing_multi_staff_min_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_layout_system_spacing_multi_staff_min_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_new_system_from_xml_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_layout_new_system_from_xml_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_new_page_from_xml_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_layout_new_page_from_xml_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_layout_fill_empty_measures_with_whole_rest_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_layout_fill_empty_measures_with_whole_rest_func = Int32 Function(Pointer<MXMLOptions>);
-
-// Line Breaking Options
-typedef mxml_options_set_line_breaking_justification_ratio_min_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_justification_ratio_min_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_justification_ratio_max_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_justification_ratio_max_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_justification_ratio_target_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_justification_ratio_target_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_justification_ratio_soft_min_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_justification_ratio_soft_min_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_justification_ratio_soft_max_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_justification_ratio_soft_max_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_weight_ratio_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_weight_ratio_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_weight_tight_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_weight_tight_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_weight_loose_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_weight_loose_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_weight_last_under_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_weight_last_under_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_cost_power_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_cost_power_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_stretch_last_system_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_stretch_last_system_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_last_line_max_underfill_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_last_line_max_underfill_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_target_measures_per_system_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_target_measures_per_system_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_weight_count_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_weight_count_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_bonus_final_bar_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_bonus_final_bar_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_bonus_double_bar_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_bonus_double_bar_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_bonus_phras_end_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_bonus_phras_end_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_bonus_rehearsal_mark_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_bonus_rehearsal_mark_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_hairpin_across_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_hairpin_across_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_slur_across_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_slur_across_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_lyrics_hyphen_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_lyrics_hyphen_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_tie_across_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_tie_across_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_clef_change_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_clef_change_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_key_time_change_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_key_time_change_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_penalty_tempo_text_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_line_breaking_penalty_tempo_text_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_enable_two_pass_optimization_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_enable_two_pass_optimization_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_enable_break_features_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_enable_break_features_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_enable_system_level_spacing_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_enable_system_level_spacing_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_line_breaking_max_measures_per_line_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_line_breaking_max_measures_per_line_func = Int32 Function(Pointer<MXMLOptions>);
-
-// Notation Options
-typedef mxml_options_set_notation_auto_beam_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_auto_beam_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_tuplets_bracketed_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_tuplets_bracketed_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_triplets_bracketed_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_triplets_bracketed_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_tuplets_ratioed_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_tuplets_ratioed_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_align_rests_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_align_rests_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_set_wanted_stem_direction_by_xml_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_set_wanted_stem_direction_by_xml_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_slur_lift_sample_count_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_slur_lift_sample_count_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fingering_position_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_notation_fingering_position_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fingering_inside_stafflines_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_notation_fingering_inside_stafflines_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fingering_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fingering_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fingering_font_size_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fingering_font_size_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_line_thickness_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_line_thickness_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_text_font_size_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_text_font_size_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_text_to_line_start_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_text_to_line_start_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_line_to_end_symbol_gap_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_line_to_end_symbol_gap_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_pedal_change_notch_height_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_pedal_change_notch_height_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_dynamics_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_dynamics_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_dynamics_font_size_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_dynamics_font_size_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_wedge_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_wedge_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_wedge_height_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_wedge_height_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_wedge_line_thickness_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_wedge_line_thickness_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_wedge_inset_from_ends_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_wedge_inset_from_ends_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_lyrics_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_lyrics_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_lyrics_font_size_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_lyrics_font_size_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_lyrics_hyphen_min_gap_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_lyrics_hyphen_min_gap_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_articulation_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_articulation_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_articulation_stack_gap_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_articulation_stack_gap_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_articulation_line_thickness_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_articulation_line_thickness_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_tenuto_length_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_tenuto_length_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_accent_width_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_accent_width_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_accent_height_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_accent_height_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_marcato_width_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_marcato_width_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_marcato_height_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_marcato_height_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_staccato_dot_scale_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_staccato_dot_scale_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_dot_to_arc_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_dot_to_arc_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_width_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_width_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_height_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_height_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_thickness_start_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_thickness_start_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_thickness_mid_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_thickness_mid_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_fermata_dot_scale_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_fermata_dot_scale_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_ornament_y_offset_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_ornament_y_offset_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_ornament_stack_gap_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_ornament_stack_gap_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_ornament_font_size_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_ornament_font_size_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_notation_staff_distance_staff_spaces_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_notation_staff_distance_staff_spaces_func = Double Function(Pointer<MXMLOptions>);
-
-// Color Options
-typedef mxml_options_set_colors_dark_mode_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_colors_dark_mode_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_music_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_music_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_notehead_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_notehead_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_stem_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_stem_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_rest_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_rest_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_label_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_label_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_default_color_title_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_default_color_title_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_coloring_enabled_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_colors_coloring_enabled_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_coloring_mode_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_colors_coloring_mode_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_color_stems_like_noteheads_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_colors_color_stems_like_noteheads_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_colors_coloring_set_custom_func = Void Function(Pointer<MXMLOptions>, Pointer<Pointer<Utf8>>, Size);
-typedef mxml_options_get_colors_coloring_set_custom_count_func = Size Function(Pointer<MXMLOptions>);
-typedef mxml_options_get_colors_coloring_set_custom_at_func = Pointer<Utf8> Function(Pointer<MXMLOptions>, Size);
-
-// Performance Options
-typedef mxml_options_set_performance_enable_glyph_cache_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_performance_enable_glyph_cache_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_performance_enable_spatial_indexing_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_performance_enable_spatial_indexing_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_performance_sky_bottom_line_batch_min_measures_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_performance_sky_bottom_line_batch_min_measures_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_performance_svg_precision_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_performance_svg_precision_func = Int32 Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_performance_bench_enable_func = Void Function(Pointer<MXMLOptions>, Int32);
-typedef mxml_options_get_performance_bench_enable_func = Int32 Function(Pointer<MXMLOptions>);
-
-// Global Options
-typedef mxml_options_set_backend_func = Void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef mxml_options_get_backend_func = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_zoom_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_zoom_func = Double Function(Pointer<MXMLOptions>);
-typedef mxml_options_set_sheet_maximum_width_func = Void Function(Pointer<MXMLOptions>, Double);
-typedef mxml_options_get_sheet_maximum_width_func = Double Function(Pointer<MXMLOptions>);
-
-// Layout with options
-typedef mxml_layout_with_options_func = Void Function(Pointer<MXMLHandle>, Float, Pointer<MXMLOptions>);
-typedef MxmlLayoutWithOptions = void Function(Pointer<MXMLHandle>, double, Pointer<MXMLOptions>);
-
-
-// --- Options Dart Typedefs ---
-
-typedef OptionsSetBool = void Function(Pointer<MXMLOptions>, int);
-typedef OptionsGetBool = int Function(Pointer<MXMLOptions>);
-typedef OptionsSetInt = void Function(Pointer<MXMLOptions>, int);
-typedef OptionsGetInt = int Function(Pointer<MXMLOptions>);
-typedef OptionsSetDouble = void Function(Pointer<MXMLOptions>, double);
-typedef OptionsGetDouble = double Function(Pointer<MXMLOptions>);
-typedef OptionsSetString = void Function(Pointer<MXMLOptions>, Pointer<Utf8>);
-typedef OptionsGetString = Pointer<Utf8> Function(Pointer<MXMLOptions>);
-typedef OptionsSetStringList = void Function(Pointer<MXMLOptions>, Pointer<Pointer<Utf8>>, int);
-typedef OptionsGetStringListCount = int Function(Pointer<MXMLOptions>);
-typedef OptionsGetStringListAt = Pointer<Utf8> Function(Pointer<MXMLOptions>, int);
-
-
-// Conteneur Dart pour les benchmarks pipeline.
-class MXMLPipelineBench {
-  final double inputXmlLoadMs;
-  final double inputModelBuildMs;
-  final double inputTotalMs;
-  final double layoutMetricsMs;
-  final double layoutLineBreakingMs;
-  final double layoutTotalMs;
-  final double renderCommandsMs;
-  final double exportSerializeSvgMs;
-  final double pipelineTotalMs;
-
-  // Construit une copie Dart depuis la struct C.
-  MXMLPipelineBench({
-    required this.inputXmlLoadMs,
-    required this.inputModelBuildMs,
-    required this.inputTotalMs,
-    required this.layoutMetricsMs,
-    required this.layoutLineBreakingMs,
-    required this.layoutTotalMs,
-    required this.renderCommandsMs,
-    required this.exportSerializeSvgMs,
-    required this.pipelineTotalMs,
-  });
-
-  // Convertit la struct C en copie Dart pour éviter de garder un pointeur.
-  static MXMLPipelineBench fromC(MXMLPipelineBenchC bench) {
-    return MXMLPipelineBench(
-      inputXmlLoadMs: bench.inputXmlLoadMs,
-      inputModelBuildMs: bench.inputModelBuildMs,
-      inputTotalMs: bench.inputTotalMs,
-      layoutMetricsMs: bench.layoutMetricsMs,
-      layoutLineBreakingMs: bench.layoutLineBreakingMs,
-      layoutTotalMs: bench.layoutTotalMs,
-      renderCommandsMs: bench.renderCommandsMs,
-      exportSerializeSvgMs: bench.exportSerializeSvgMs,
-      pipelineTotalMs: bench.pipelineTotalMs,
-    );
-  }
-}
+import 'ffi/mxml_library.dart';
+import 'ffi/mxml_signatures.dart';
+import 'ffi/mxml_types.dart';
+
+export 'ffi/mxml_types.dart';
 
 class MXMLBridge {
-  static late final DynamicLibrary _dylib;
+  static late final MxmlLibrary _library;
   static const int _boolTrue = 1;
   static const int _boolFalse = 0;
   
@@ -824,289 +285,280 @@ class MXMLBridge {
   static bool _initialized = false;
 
   static void initialize() {
+    // Evite une reinitialisation inutile.
     if (_initialized) return;
+    _library = MxmlLibrary.open();
 
-    if (Platform.isLinux) {
-      _dylib = DynamicLibrary.open('libmxmlconverter.so');
-    } else if (Platform.isAndroid) {
-      _dylib = DynamicLibrary.open('libmxmlconverter.so');
-    } else if (Platform.isMacOS || Platform.isIOS) {
-      _dylib = DynamicLibrary.open('libmxmlconverter.dylib'); 
-    } else if (Platform.isWindows) {
-      _dylib = DynamicLibrary.open('mxmlconverter.dll');
-    } else {
-      throw UnsupportedError('Platform not supported');
-    }
 
-    _create = _dylib.lookupFunction<mxml_create_func, MxmlCreate>('mxml_create');
-    _destroy = _dylib.lookupFunction<mxml_destroy_func, MxmlDestroy>('mxml_destroy');
-    _loadFile = _dylib.lookupFunction<mxml_load_file_func, MxmlLoadFile>('mxml_load_file');
-    _layout = _dylib.lookupFunction<mxml_layout_func, MxmlLayout>('mxml_layout');
-    _getHeight = _dylib.lookupFunction<mxml_get_height_func, MxmlGetHeight>('mxml_get_height');
-    _getGlyphCodepoint = _dylib.lookupFunction<mxml_get_glyph_codepoint_func, MxmlGetGlyphCodepoint>('mxml_get_glyph_codepoint');
-    _getRenderCommands = _dylib.lookupFunction<mxml_get_render_commands_func, MxmlGetRenderCommands>('mxml_get_render_commands');
-    _getString = _dylib.lookupFunction<mxml_get_string_func, MxmlGetString>('mxml_get_string');
-    _writeSvgToFile = _dylib.lookupFunction<mxml_write_svg_to_file_func, MxmlWriteSvgToFile>('mxml_write_svg_to_file');
-    _getPipelineBench = _dylib.lookupFunction<mxml_get_pipeline_bench_func, MxmlGetPipelineBench>('mxml_get_pipeline_bench');
-    _optionsCreate = _dylib.lookupFunction<mxml_options_create_func, MxmlOptionsCreate>('mxml_options_create');
-    _optionsDestroy = _dylib.lookupFunction<mxml_options_destroy_func, MxmlOptionsDestroy>('mxml_options_destroy');
-    _optionsApplyStandard = _dylib.lookupFunction<mxml_options_apply_standard_func, MxmlOptionsApplyStandard>('mxml_options_apply_standard');
-    _optionsApplyPiano = _dylib.lookupFunction<mxml_options_apply_piano_func, MxmlOptionsApplyPiano>('mxml_options_apply_piano');
-    _optionsApplyPianoPedagogic = _dylib.lookupFunction<mxml_options_apply_piano_pedagogic_func, MxmlOptionsApplyPianoPedagogic>('mxml_options_apply_piano_pedagogic');
-    _optionsApplyCompact = _dylib.lookupFunction<mxml_options_apply_compact_func, MxmlOptionsApplyCompact>('mxml_options_apply_compact');
-    _optionsApplyPrint = _dylib.lookupFunction<mxml_options_apply_print_func, MxmlOptionsApplyPrint>('mxml_options_apply_print');
-    _layoutWithOptions = _dylib.lookupFunction<mxml_layout_with_options_func, MxmlLayoutWithOptions>('mxml_layout_with_options');
-    _setRenderingDrawTitle = _dylib.lookupFunction<mxml_options_set_rendering_draw_title_func, OptionsSetBool>('mxml_options_set_rendering_draw_title');
-    _getRenderingDrawTitle = _dylib.lookupFunction<mxml_options_get_rendering_draw_title_func, OptionsGetBool>('mxml_options_get_rendering_draw_title');
-    _setRenderingDrawPartNames = _dylib.lookupFunction<mxml_options_set_rendering_draw_part_names_func, OptionsSetBool>('mxml_options_set_rendering_draw_part_names');
-    _getRenderingDrawPartNames = _dylib.lookupFunction<mxml_options_get_rendering_draw_part_names_func, OptionsGetBool>('mxml_options_get_rendering_draw_part_names');
-    _setRenderingDrawMeasureNumbers = _dylib.lookupFunction<mxml_options_set_rendering_draw_measure_numbers_func, OptionsSetBool>('mxml_options_set_rendering_draw_measure_numbers');
-    _getRenderingDrawMeasureNumbers = _dylib.lookupFunction<mxml_options_get_rendering_draw_measure_numbers_func, OptionsGetBool>('mxml_options_get_rendering_draw_measure_numbers');
-    _setRenderingDrawMeasureNumbersOnlyAtSystemStart = _dylib.lookupFunction<mxml_options_set_rendering_draw_measure_numbers_only_at_system_start_func, OptionsSetBool>('mxml_options_set_rendering_draw_measure_numbers_only_at_system_start');
-    _getRenderingDrawMeasureNumbersOnlyAtSystemStart = _dylib.lookupFunction<mxml_options_get_rendering_draw_measure_numbers_only_at_system_start_func, OptionsGetBool>('mxml_options_get_rendering_draw_measure_numbers_only_at_system_start');
-    _setRenderingDrawMeasureNumbersBegin = _dylib.lookupFunction<mxml_options_set_rendering_draw_measure_numbers_begin_func, OptionsSetInt>('mxml_options_set_rendering_draw_measure_numbers_begin');
-    _getRenderingDrawMeasureNumbersBegin = _dylib.lookupFunction<mxml_options_get_rendering_draw_measure_numbers_begin_func, OptionsGetInt>('mxml_options_get_rendering_draw_measure_numbers_begin');
-    _setRenderingMeasureNumberInterval = _dylib.lookupFunction<mxml_options_set_rendering_measure_number_interval_func, OptionsSetInt>('mxml_options_set_rendering_measure_number_interval');
-    _getRenderingMeasureNumberInterval = _dylib.lookupFunction<mxml_options_get_rendering_measure_number_interval_func, OptionsGetInt>('mxml_options_get_rendering_measure_number_interval');
-    _setRenderingDrawTimeSignatures = _dylib.lookupFunction<mxml_options_set_rendering_draw_time_signatures_func, OptionsSetBool>('mxml_options_set_rendering_draw_time_signatures');
-    _getRenderingDrawTimeSignatures = _dylib.lookupFunction<mxml_options_get_rendering_draw_time_signatures_func, OptionsGetBool>('mxml_options_get_rendering_draw_time_signatures');
-    _setRenderingDrawKeySignatures = _dylib.lookupFunction<mxml_options_set_rendering_draw_key_signatures_func, OptionsSetBool>('mxml_options_set_rendering_draw_key_signatures');
-    _getRenderingDrawKeySignatures = _dylib.lookupFunction<mxml_options_get_rendering_draw_key_signatures_func, OptionsGetBool>('mxml_options_get_rendering_draw_key_signatures');
-    _setRenderingDrawFingerings = _dylib.lookupFunction<mxml_options_set_rendering_draw_fingerings_func, OptionsSetBool>('mxml_options_set_rendering_draw_fingerings');
-    _getRenderingDrawFingerings = _dylib.lookupFunction<mxml_options_get_rendering_draw_fingerings_func, OptionsGetBool>('mxml_options_get_rendering_draw_fingerings');
-    _setRenderingDrawSlurs = _dylib.lookupFunction<mxml_options_set_rendering_draw_slurs_func, OptionsSetBool>('mxml_options_set_rendering_draw_slurs');
-    _getRenderingDrawSlurs = _dylib.lookupFunction<mxml_options_get_rendering_draw_slurs_func, OptionsGetBool>('mxml_options_get_rendering_draw_slurs');
-    _setRenderingDrawPedals = _dylib.lookupFunction<mxml_options_set_rendering_draw_pedals_func, OptionsSetBool>('mxml_options_set_rendering_draw_pedals');
-    _getRenderingDrawPedals = _dylib.lookupFunction<mxml_options_get_rendering_draw_pedals_func, OptionsGetBool>('mxml_options_get_rendering_draw_pedals');
-    _setRenderingDrawDynamics = _dylib.lookupFunction<mxml_options_set_rendering_draw_dynamics_func, OptionsSetBool>('mxml_options_set_rendering_draw_dynamics');
-    _getRenderingDrawDynamics = _dylib.lookupFunction<mxml_options_get_rendering_draw_dynamics_func, OptionsGetBool>('mxml_options_get_rendering_draw_dynamics');
-    _setRenderingDrawWedges = _dylib.lookupFunction<mxml_options_set_rendering_draw_wedges_func, OptionsSetBool>('mxml_options_set_rendering_draw_wedges');
-    _getRenderingDrawWedges = _dylib.lookupFunction<mxml_options_get_rendering_draw_wedges_func, OptionsGetBool>('mxml_options_get_rendering_draw_wedges');
-    _setRenderingDrawLyrics = _dylib.lookupFunction<mxml_options_set_rendering_draw_lyrics_func, OptionsSetBool>('mxml_options_set_rendering_draw_lyrics');
-    _getRenderingDrawLyrics = _dylib.lookupFunction<mxml_options_get_rendering_draw_lyrics_func, OptionsGetBool>('mxml_options_get_rendering_draw_lyrics');
-    _setRenderingDrawCredits = _dylib.lookupFunction<mxml_options_set_rendering_draw_credits_func, OptionsSetBool>('mxml_options_set_rendering_draw_credits');
-    _getRenderingDrawCredits = _dylib.lookupFunction<mxml_options_get_rendering_draw_credits_func, OptionsGetBool>('mxml_options_get_rendering_draw_credits');
-    _setRenderingDrawComposer = _dylib.lookupFunction<mxml_options_set_rendering_draw_composer_func, OptionsSetBool>('mxml_options_set_rendering_draw_composer');
-    _getRenderingDrawComposer = _dylib.lookupFunction<mxml_options_get_rendering_draw_composer_func, OptionsGetBool>('mxml_options_get_rendering_draw_composer');
-    _setRenderingDrawLyricist = _dylib.lookupFunction<mxml_options_set_rendering_draw_lyricist_func, OptionsSetBool>('mxml_options_set_rendering_draw_lyricist');
-    _getRenderingDrawLyricist = _dylib.lookupFunction<mxml_options_get_rendering_draw_lyricist_func, OptionsGetBool>('mxml_options_get_rendering_draw_lyricist');
-    _setLayoutPageFormat = _dylib.lookupFunction<mxml_options_set_layout_page_format_func, OptionsSetString>('mxml_options_set_layout_page_format');
-    _getLayoutPageFormat = _dylib.lookupFunction<mxml_options_get_layout_page_format_func, OptionsGetString>('mxml_options_get_layout_page_format');
-    _setLayoutUseFixedCanvas = _dylib.lookupFunction<mxml_options_set_layout_use_fixed_canvas_func, OptionsSetBool>('mxml_options_set_layout_use_fixed_canvas');
-    _getLayoutUseFixedCanvas = _dylib.lookupFunction<mxml_options_get_layout_use_fixed_canvas_func, OptionsGetBool>('mxml_options_get_layout_use_fixed_canvas');
-    _setLayoutFixedCanvasWidth = _dylib.lookupFunction<mxml_options_set_layout_fixed_canvas_width_func, OptionsSetDouble>('mxml_options_set_layout_fixed_canvas_width');
-    _getLayoutFixedCanvasWidth = _dylib.lookupFunction<mxml_options_get_layout_fixed_canvas_width_func, OptionsGetDouble>('mxml_options_get_layout_fixed_canvas_width');
-    _setLayoutFixedCanvasHeight = _dylib.lookupFunction<mxml_options_set_layout_fixed_canvas_height_func, OptionsSetDouble>('mxml_options_set_layout_fixed_canvas_height');
-    _getLayoutFixedCanvasHeight = _dylib.lookupFunction<mxml_options_get_layout_fixed_canvas_height_func, OptionsGetDouble>('mxml_options_get_layout_fixed_canvas_height');
-    _setLayoutPageHeight = _dylib.lookupFunction<mxml_options_set_layout_page_height_func, OptionsSetDouble>('mxml_options_set_layout_page_height');
-    _getLayoutPageHeight = _dylib.lookupFunction<mxml_options_get_layout_page_height_func, OptionsGetDouble>('mxml_options_get_layout_page_height');
-    _setLayoutPageMarginLeftStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_page_margin_left_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_page_margin_left_staff_spaces');
-    _getLayoutPageMarginLeftStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_page_margin_left_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_page_margin_left_staff_spaces');
-    _setLayoutPageMarginRightStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_page_margin_right_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_page_margin_right_staff_spaces');
-    _getLayoutPageMarginRightStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_page_margin_right_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_page_margin_right_staff_spaces');
-    _setLayoutPageMarginTopStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_page_margin_top_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_page_margin_top_staff_spaces');
-    _getLayoutPageMarginTopStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_page_margin_top_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_page_margin_top_staff_spaces');
-    _setLayoutPageMarginBottomStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_page_margin_bottom_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_page_margin_bottom_staff_spaces');
-    _getLayoutPageMarginBottomStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_page_margin_bottom_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_page_margin_bottom_staff_spaces');
-    _setLayoutSystemSpacingMinStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_system_spacing_min_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_system_spacing_min_staff_spaces');
-    _getLayoutSystemSpacingMinStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_system_spacing_min_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_system_spacing_min_staff_spaces');
-    _setLayoutSystemSpacingMultiStaffMinStaffSpaces = _dylib.lookupFunction<mxml_options_set_layout_system_spacing_multi_staff_min_staff_spaces_func, OptionsSetDouble>('mxml_options_set_layout_system_spacing_multi_staff_min_staff_spaces');
-    _getLayoutSystemSpacingMultiStaffMinStaffSpaces = _dylib.lookupFunction<mxml_options_get_layout_system_spacing_multi_staff_min_staff_spaces_func, OptionsGetDouble>('mxml_options_get_layout_system_spacing_multi_staff_min_staff_spaces');
-    _setLayoutNewSystemFromXml = _dylib.lookupFunction<mxml_options_set_layout_new_system_from_xml_func, OptionsSetBool>('mxml_options_set_layout_new_system_from_xml');
-    _getLayoutNewSystemFromXml = _dylib.lookupFunction<mxml_options_get_layout_new_system_from_xml_func, OptionsGetBool>('mxml_options_get_layout_new_system_from_xml');
-    _setLayoutNewPageFromXml = _dylib.lookupFunction<mxml_options_set_layout_new_page_from_xml_func, OptionsSetBool>('mxml_options_set_layout_new_page_from_xml');
-    _getLayoutNewPageFromXml = _dylib.lookupFunction<mxml_options_get_layout_new_page_from_xml_func, OptionsGetBool>('mxml_options_get_layout_new_page_from_xml');
-    _setLayoutFillEmptyMeasuresWithWholeRest = _dylib.lookupFunction<mxml_options_set_layout_fill_empty_measures_with_whole_rest_func, OptionsSetBool>('mxml_options_set_layout_fill_empty_measures_with_whole_rest');
-    _getLayoutFillEmptyMeasuresWithWholeRest = _dylib.lookupFunction<mxml_options_get_layout_fill_empty_measures_with_whole_rest_func, OptionsGetBool>('mxml_options_get_layout_fill_empty_measures_with_whole_rest');
-    _setLineBreakingJustificationRatioMin = _dylib.lookupFunction<mxml_options_set_line_breaking_justification_ratio_min_func, OptionsSetDouble>('mxml_options_set_line_breaking_justification_ratio_min');
-    _getLineBreakingJustificationRatioMin = _dylib.lookupFunction<mxml_options_get_line_breaking_justification_ratio_min_func, OptionsGetDouble>('mxml_options_get_line_breaking_justification_ratio_min');
-    _setLineBreakingJustificationRatioMax = _dylib.lookupFunction<mxml_options_set_line_breaking_justification_ratio_max_func, OptionsSetDouble>('mxml_options_set_line_breaking_justification_ratio_max');
-    _getLineBreakingJustificationRatioMax = _dylib.lookupFunction<mxml_options_get_line_breaking_justification_ratio_max_func, OptionsGetDouble>('mxml_options_get_line_breaking_justification_ratio_max');
-    _setLineBreakingJustificationRatioTarget = _dylib.lookupFunction<mxml_options_set_line_breaking_justification_ratio_target_func, OptionsSetDouble>('mxml_options_set_line_breaking_justification_ratio_target');
-    _getLineBreakingJustificationRatioTarget = _dylib.lookupFunction<mxml_options_get_line_breaking_justification_ratio_target_func, OptionsGetDouble>('mxml_options_get_line_breaking_justification_ratio_target');
-    _setLineBreakingJustificationRatioSoftMin = _dylib.lookupFunction<mxml_options_set_line_breaking_justification_ratio_soft_min_func, OptionsSetDouble>('mxml_options_set_line_breaking_justification_ratio_soft_min');
-    _getLineBreakingJustificationRatioSoftMin = _dylib.lookupFunction<mxml_options_get_line_breaking_justification_ratio_soft_min_func, OptionsGetDouble>('mxml_options_get_line_breaking_justification_ratio_soft_min');
-    _setLineBreakingJustificationRatioSoftMax = _dylib.lookupFunction<mxml_options_set_line_breaking_justification_ratio_soft_max_func, OptionsSetDouble>('mxml_options_set_line_breaking_justification_ratio_soft_max');
-    _getLineBreakingJustificationRatioSoftMax = _dylib.lookupFunction<mxml_options_get_line_breaking_justification_ratio_soft_max_func, OptionsGetDouble>('mxml_options_get_line_breaking_justification_ratio_soft_max');
-    _setLineBreakingWeightRatio = _dylib.lookupFunction<mxml_options_set_line_breaking_weight_ratio_func, OptionsSetDouble>('mxml_options_set_line_breaking_weight_ratio');
-    _getLineBreakingWeightRatio = _dylib.lookupFunction<mxml_options_get_line_breaking_weight_ratio_func, OptionsGetDouble>('mxml_options_get_line_breaking_weight_ratio');
-    _setLineBreakingWeightTight = _dylib.lookupFunction<mxml_options_set_line_breaking_weight_tight_func, OptionsSetDouble>('mxml_options_set_line_breaking_weight_tight');
-    _getLineBreakingWeightTight = _dylib.lookupFunction<mxml_options_get_line_breaking_weight_tight_func, OptionsGetDouble>('mxml_options_get_line_breaking_weight_tight');
-    _setLineBreakingWeightLoose = _dylib.lookupFunction<mxml_options_set_line_breaking_weight_loose_func, OptionsSetDouble>('mxml_options_set_line_breaking_weight_loose');
-    _getLineBreakingWeightLoose = _dylib.lookupFunction<mxml_options_get_line_breaking_weight_loose_func, OptionsGetDouble>('mxml_options_get_line_breaking_weight_loose');
-    _setLineBreakingWeightLastUnder = _dylib.lookupFunction<mxml_options_set_line_breaking_weight_last_under_func, OptionsSetDouble>('mxml_options_set_line_breaking_weight_last_under');
-    _getLineBreakingWeightLastUnder = _dylib.lookupFunction<mxml_options_get_line_breaking_weight_last_under_func, OptionsGetDouble>('mxml_options_get_line_breaking_weight_last_under');
-    _setLineBreakingCostPower = _dylib.lookupFunction<mxml_options_set_line_breaking_cost_power_func, OptionsSetDouble>('mxml_options_set_line_breaking_cost_power');
-    _getLineBreakingCostPower = _dylib.lookupFunction<mxml_options_get_line_breaking_cost_power_func, OptionsGetDouble>('mxml_options_get_line_breaking_cost_power');
-    _setLineBreakingStretchLastSystem = _dylib.lookupFunction<mxml_options_set_line_breaking_stretch_last_system_func, OptionsSetBool>('mxml_options_set_line_breaking_stretch_last_system');
-    _getLineBreakingStretchLastSystem = _dylib.lookupFunction<mxml_options_get_line_breaking_stretch_last_system_func, OptionsGetBool>('mxml_options_get_line_breaking_stretch_last_system');
-    _setLineBreakingLastLineMaxUnderfill = _dylib.lookupFunction<mxml_options_set_line_breaking_last_line_max_underfill_func, OptionsSetDouble>('mxml_options_set_line_breaking_last_line_max_underfill');
-    _getLineBreakingLastLineMaxUnderfill = _dylib.lookupFunction<mxml_options_get_line_breaking_last_line_max_underfill_func, OptionsGetDouble>('mxml_options_get_line_breaking_last_line_max_underfill');
-    _setLineBreakingTargetMeasuresPerSystem = _dylib.lookupFunction<mxml_options_set_line_breaking_target_measures_per_system_func, OptionsSetInt>('mxml_options_set_line_breaking_target_measures_per_system');
-    _getLineBreakingTargetMeasuresPerSystem = _dylib.lookupFunction<mxml_options_get_line_breaking_target_measures_per_system_func, OptionsGetInt>('mxml_options_get_line_breaking_target_measures_per_system');
-    _setLineBreakingWeightCount = _dylib.lookupFunction<mxml_options_set_line_breaking_weight_count_func, OptionsSetDouble>('mxml_options_set_line_breaking_weight_count');
-    _getLineBreakingWeightCount = _dylib.lookupFunction<mxml_options_get_line_breaking_weight_count_func, OptionsGetDouble>('mxml_options_get_line_breaking_weight_count');
-    _setLineBreakingBonusFinalBar = _dylib.lookupFunction<mxml_options_set_line_breaking_bonus_final_bar_func, OptionsSetDouble>('mxml_options_set_line_breaking_bonus_final_bar');
-    _getLineBreakingBonusFinalBar = _dylib.lookupFunction<mxml_options_get_line_breaking_bonus_final_bar_func, OptionsGetDouble>('mxml_options_get_line_breaking_bonus_final_bar');
-    _setLineBreakingBonusDoubleBar = _dylib.lookupFunction<mxml_options_set_line_breaking_bonus_double_bar_func, OptionsSetDouble>('mxml_options_set_line_breaking_bonus_double_bar');
-    _getLineBreakingBonusDoubleBar = _dylib.lookupFunction<mxml_options_get_line_breaking_bonus_double_bar_func, OptionsGetDouble>('mxml_options_get_line_breaking_bonus_double_bar');
-    _setLineBreakingBonusPhrasEnd = _dylib.lookupFunction<mxml_options_set_line_breaking_bonus_phras_end_func, OptionsSetDouble>('mxml_options_set_line_breaking_bonus_phras_end');
-    _getLineBreakingBonusPhrasEnd = _dylib.lookupFunction<mxml_options_get_line_breaking_bonus_phras_end_func, OptionsGetDouble>('mxml_options_get_line_breaking_bonus_phras_end');
-    _setLineBreakingBonusRehearsalMark = _dylib.lookupFunction<mxml_options_set_line_breaking_bonus_rehearsal_mark_func, OptionsSetDouble>('mxml_options_set_line_breaking_bonus_rehearsal_mark');
-    _getLineBreakingBonusRehearsalMark = _dylib.lookupFunction<mxml_options_get_line_breaking_bonus_rehearsal_mark_func, OptionsGetDouble>('mxml_options_get_line_breaking_bonus_rehearsal_mark');
-    _setLineBreakingPenaltyHairpinAcross = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_hairpin_across_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_hairpin_across');
-    _getLineBreakingPenaltyHairpinAcross = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_hairpin_across_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_hairpin_across');
-    _setLineBreakingPenaltySlurAcross = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_slur_across_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_slur_across');
-    _getLineBreakingPenaltySlurAcross = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_slur_across_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_slur_across');
-    _setLineBreakingPenaltyLyricsHyphen = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_lyrics_hyphen_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_lyrics_hyphen');
-    _getLineBreakingPenaltyLyricsHyphen = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_lyrics_hyphen_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_lyrics_hyphen');
-    _setLineBreakingPenaltyTieAcross = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_tie_across_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_tie_across');
-    _getLineBreakingPenaltyTieAcross = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_tie_across_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_tie_across');
-    _setLineBreakingPenaltyClefChange = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_clef_change_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_clef_change');
-    _getLineBreakingPenaltyClefChange = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_clef_change_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_clef_change');
-    _setLineBreakingPenaltyKeyTimeChange = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_key_time_change_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_key_time_change');
-    _getLineBreakingPenaltyKeyTimeChange = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_key_time_change_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_key_time_change');
-    _setLineBreakingPenaltyTempoText = _dylib.lookupFunction<mxml_options_set_line_breaking_penalty_tempo_text_func, OptionsSetDouble>('mxml_options_set_line_breaking_penalty_tempo_text');
-    _getLineBreakingPenaltyTempoText = _dylib.lookupFunction<mxml_options_get_line_breaking_penalty_tempo_text_func, OptionsGetDouble>('mxml_options_get_line_breaking_penalty_tempo_text');
-    _setLineBreakingEnableTwoPassOptimization = _dylib.lookupFunction<mxml_options_set_line_breaking_enable_two_pass_optimization_func, OptionsSetBool>('mxml_options_set_line_breaking_enable_two_pass_optimization');
-    _getLineBreakingEnableTwoPassOptimization = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_two_pass_optimization_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_two_pass_optimization');
-    _setLineBreakingEnableBreakFeatures = _dylib.lookupFunction<mxml_options_set_line_breaking_enable_break_features_func, OptionsSetBool>('mxml_options_set_line_breaking_enable_break_features');
-    _getLineBreakingEnableBreakFeatures = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_break_features_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_break_features');
-    _setLineBreakingEnableSystemLevelSpacing = _dylib.lookupFunction<mxml_options_set_line_breaking_enable_system_level_spacing_func, OptionsSetBool>('mxml_options_set_line_breaking_enable_system_level_spacing');
-    _getLineBreakingEnableSystemLevelSpacing = _dylib.lookupFunction<mxml_options_get_line_breaking_enable_system_level_spacing_func, OptionsGetBool>('mxml_options_get_line_breaking_enable_system_level_spacing');
-    _setLineBreakingMaxMeasuresPerLine = _dylib.lookupFunction<mxml_options_set_line_breaking_max_measures_per_line_func, OptionsSetInt>('mxml_options_set_line_breaking_max_measures_per_line');
-    _getLineBreakingMaxMeasuresPerLine = _dylib.lookupFunction<mxml_options_get_line_breaking_max_measures_per_line_func, OptionsGetInt>('mxml_options_get_line_breaking_max_measures_per_line');
-    _setNotationAutoBeam = _dylib.lookupFunction<mxml_options_set_notation_auto_beam_func, OptionsSetBool>('mxml_options_set_notation_auto_beam');
-    _getNotationAutoBeam = _dylib.lookupFunction<mxml_options_get_notation_auto_beam_func, OptionsGetBool>('mxml_options_get_notation_auto_beam');
-    _setNotationTupletsBracketed = _dylib.lookupFunction<mxml_options_set_notation_tuplets_bracketed_func, OptionsSetBool>('mxml_options_set_notation_tuplets_bracketed');
-    _getNotationTupletsBracketed = _dylib.lookupFunction<mxml_options_get_notation_tuplets_bracketed_func, OptionsGetBool>('mxml_options_get_notation_tuplets_bracketed');
-    _setNotationTripletsBracketed = _dylib.lookupFunction<mxml_options_set_notation_triplets_bracketed_func, OptionsSetBool>('mxml_options_set_notation_triplets_bracketed');
-    _getNotationTripletsBracketed = _dylib.lookupFunction<mxml_options_get_notation_triplets_bracketed_func, OptionsGetBool>('mxml_options_get_notation_triplets_bracketed');
-    _setNotationTupletsRatioed = _dylib.lookupFunction<mxml_options_set_notation_tuplets_ratioed_func, OptionsSetBool>('mxml_options_set_notation_tuplets_ratioed');
-    _getNotationTupletsRatioed = _dylib.lookupFunction<mxml_options_get_notation_tuplets_ratioed_func, OptionsGetBool>('mxml_options_get_notation_tuplets_ratioed');
-    _setNotationAlignRests = _dylib.lookupFunction<mxml_options_set_notation_align_rests_func, OptionsSetBool>('mxml_options_set_notation_align_rests');
-    _getNotationAlignRests = _dylib.lookupFunction<mxml_options_get_notation_align_rests_func, OptionsGetBool>('mxml_options_get_notation_align_rests');
-    _setNotationSetWantedStemDirectionByXml = _dylib.lookupFunction<mxml_options_set_notation_set_wanted_stem_direction_by_xml_func, OptionsSetBool>('mxml_options_set_notation_set_wanted_stem_direction_by_xml');
-    _getNotationSetWantedStemDirectionByXml = _dylib.lookupFunction<mxml_options_get_notation_set_wanted_stem_direction_by_xml_func, OptionsGetBool>('mxml_options_get_notation_set_wanted_stem_direction_by_xml');
-    _setNotationSlurLiftSampleCount = _dylib.lookupFunction<mxml_options_set_notation_slur_lift_sample_count_func, OptionsSetInt>('mxml_options_set_notation_slur_lift_sample_count');
-    _getNotationSlurLiftSampleCount = _dylib.lookupFunction<mxml_options_get_notation_slur_lift_sample_count_func, OptionsGetInt>('mxml_options_get_notation_slur_lift_sample_count');
-    _setNotationFingeringPosition = _dylib.lookupFunction<mxml_options_set_notation_fingering_position_func, OptionsSetString>('mxml_options_set_notation_fingering_position');
-    _getNotationFingeringPosition = _dylib.lookupFunction<mxml_options_get_notation_fingering_position_func, OptionsGetString>('mxml_options_get_notation_fingering_position');
-    _setNotationFingeringInsideStafflines = _dylib.lookupFunction<mxml_options_set_notation_fingering_inside_stafflines_func, OptionsSetBool>('mxml_options_set_notation_fingering_inside_stafflines');
-    _getNotationFingeringInsideStafflines = _dylib.lookupFunction<mxml_options_get_notation_fingering_inside_stafflines_func, OptionsGetBool>('mxml_options_get_notation_fingering_inside_stafflines');
-    _setNotationFingeringYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fingering_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fingering_y_offset_staff_spaces');
-    _getNotationFingeringYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fingering_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fingering_y_offset_staff_spaces');
-    _setNotationFingeringFontSize = _dylib.lookupFunction<mxml_options_set_notation_fingering_font_size_func, OptionsSetDouble>('mxml_options_set_notation_fingering_font_size');
-    _getNotationFingeringFontSize = _dylib.lookupFunction<mxml_options_get_notation_fingering_font_size_func, OptionsGetDouble>('mxml_options_get_notation_fingering_font_size');
-    _setNotationPedalYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_pedal_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_pedal_y_offset_staff_spaces');
-    _getNotationPedalYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_pedal_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_pedal_y_offset_staff_spaces');
-    _setNotationPedalLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_pedal_line_thickness_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_pedal_line_thickness_staff_spaces');
-    _getNotationPedalLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_pedal_line_thickness_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_pedal_line_thickness_staff_spaces');
-    _setNotationPedalTextFontSize = _dylib.lookupFunction<mxml_options_set_notation_pedal_text_font_size_func, OptionsSetDouble>('mxml_options_set_notation_pedal_text_font_size');
-    _getNotationPedalTextFontSize = _dylib.lookupFunction<mxml_options_get_notation_pedal_text_font_size_func, OptionsGetDouble>('mxml_options_get_notation_pedal_text_font_size');
-    _setNotationPedalTextToLineStartStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_pedal_text_to_line_start_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_pedal_text_to_line_start_staff_spaces');
-    _getNotationPedalTextToLineStartStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_pedal_text_to_line_start_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_pedal_text_to_line_start_staff_spaces');
-    _setNotationPedalLineToEndSymbolGapStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_pedal_line_to_end_symbol_gap_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_pedal_line_to_end_symbol_gap_staff_spaces');
-    _getNotationPedalLineToEndSymbolGapStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_pedal_line_to_end_symbol_gap_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_pedal_line_to_end_symbol_gap_staff_spaces');
-    _setNotationPedalChangeNotchHeightStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_pedal_change_notch_height_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_pedal_change_notch_height_staff_spaces');
-    _getNotationPedalChangeNotchHeightStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_pedal_change_notch_height_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_pedal_change_notch_height_staff_spaces');
-    _setNotationDynamicsYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_dynamics_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_dynamics_y_offset_staff_spaces');
-    _getNotationDynamicsYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_dynamics_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_dynamics_y_offset_staff_spaces');
-    _setNotationDynamicsFontSize = _dylib.lookupFunction<mxml_options_set_notation_dynamics_font_size_func, OptionsSetDouble>('mxml_options_set_notation_dynamics_font_size');
-    _getNotationDynamicsFontSize = _dylib.lookupFunction<mxml_options_get_notation_dynamics_font_size_func, OptionsGetDouble>('mxml_options_get_notation_dynamics_font_size');
-    _setNotationWedgeYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_wedge_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_wedge_y_offset_staff_spaces');
-    _getNotationWedgeYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_wedge_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_wedge_y_offset_staff_spaces');
-    _setNotationWedgeHeightStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_wedge_height_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_wedge_height_staff_spaces');
-    _getNotationWedgeHeightStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_wedge_height_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_wedge_height_staff_spaces');
-    _setNotationWedgeLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_wedge_line_thickness_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_wedge_line_thickness_staff_spaces');
-    _getNotationWedgeLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_wedge_line_thickness_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_wedge_line_thickness_staff_spaces');
-    _setNotationWedgeInsetFromEndsStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_wedge_inset_from_ends_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_wedge_inset_from_ends_staff_spaces');
-    _getNotationWedgeInsetFromEndsStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_wedge_inset_from_ends_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_wedge_inset_from_ends_staff_spaces');
-    _setNotationLyricsYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_lyrics_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_lyrics_y_offset_staff_spaces');
-    _getNotationLyricsYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_lyrics_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_lyrics_y_offset_staff_spaces');
-    _setNotationLyricsFontSize = _dylib.lookupFunction<mxml_options_set_notation_lyrics_font_size_func, OptionsSetDouble>('mxml_options_set_notation_lyrics_font_size');
-    _getNotationLyricsFontSize = _dylib.lookupFunction<mxml_options_get_notation_lyrics_font_size_func, OptionsGetDouble>('mxml_options_get_notation_lyrics_font_size');
-    _setNotationLyricsHyphenMinGapStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_lyrics_hyphen_min_gap_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_lyrics_hyphen_min_gap_staff_spaces');
-    _getNotationLyricsHyphenMinGapStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_lyrics_hyphen_min_gap_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_lyrics_hyphen_min_gap_staff_spaces');
-    _setNotationArticulationOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_articulation_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_articulation_offset_staff_spaces');
-    _getNotationArticulationOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_articulation_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_articulation_offset_staff_spaces');
-    _setNotationArticulationStackGapStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_articulation_stack_gap_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_articulation_stack_gap_staff_spaces');
-    _getNotationArticulationStackGapStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_articulation_stack_gap_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_articulation_stack_gap_staff_spaces');
-    _setNotationArticulationLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_articulation_line_thickness_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_articulation_line_thickness_staff_spaces');
-    _getNotationArticulationLineThicknessStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_articulation_line_thickness_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_articulation_line_thickness_staff_spaces');
-    _setNotationTenutoLengthStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_tenuto_length_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_tenuto_length_staff_spaces');
-    _getNotationTenutoLengthStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_tenuto_length_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_tenuto_length_staff_spaces');
-    _setNotationAccentWidthStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_accent_width_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_accent_width_staff_spaces');
-    _getNotationAccentWidthStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_accent_width_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_accent_width_staff_spaces');
-    _setNotationAccentHeightStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_accent_height_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_accent_height_staff_spaces');
-    _getNotationAccentHeightStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_accent_height_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_accent_height_staff_spaces');
-    _setNotationMarcatoWidthStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_marcato_width_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_marcato_width_staff_spaces');
-    _getNotationMarcatoWidthStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_marcato_width_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_marcato_width_staff_spaces');
-    _setNotationMarcatoHeightStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_marcato_height_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_marcato_height_staff_spaces');
-    _getNotationMarcatoHeightStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_marcato_height_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_marcato_height_staff_spaces');
-    _setNotationStaccatoDotScale = _dylib.lookupFunction<mxml_options_set_notation_staccato_dot_scale_func, OptionsSetDouble>('mxml_options_set_notation_staccato_dot_scale');
-    _getNotationStaccatoDotScale = _dylib.lookupFunction<mxml_options_get_notation_staccato_dot_scale_func, OptionsGetDouble>('mxml_options_get_notation_staccato_dot_scale');
-    _setNotationFermataYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_y_offset_staff_spaces');
-    _getNotationFermataYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_y_offset_staff_spaces');
-    _setNotationFermataDotToArcStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_dot_to_arc_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_dot_to_arc_staff_spaces');
-    _getNotationFermataDotToArcStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_dot_to_arc_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_dot_to_arc_staff_spaces');
-    _setNotationFermataWidthStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_width_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_width_staff_spaces');
-    _getNotationFermataWidthStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_width_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_width_staff_spaces');
-    _setNotationFermataHeightStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_height_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_height_staff_spaces');
-    _getNotationFermataHeightStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_height_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_height_staff_spaces');
-    _setNotationFermataThicknessStartStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_thickness_start_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_thickness_start_staff_spaces');
-    _getNotationFermataThicknessStartStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_thickness_start_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_thickness_start_staff_spaces');
-    _setNotationFermataThicknessMidStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_fermata_thickness_mid_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_fermata_thickness_mid_staff_spaces');
-    _getNotationFermataThicknessMidStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_fermata_thickness_mid_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_fermata_thickness_mid_staff_spaces');
-    _setNotationFermataDotScale = _dylib.lookupFunction<mxml_options_set_notation_fermata_dot_scale_func, OptionsSetDouble>('mxml_options_set_notation_fermata_dot_scale');
-    _getNotationFermataDotScale = _dylib.lookupFunction<mxml_options_get_notation_fermata_dot_scale_func, OptionsGetDouble>('mxml_options_get_notation_fermata_dot_scale');
-    _setNotationOrnamentYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_ornament_y_offset_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_ornament_y_offset_staff_spaces');
-    _getNotationOrnamentYOffsetStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_ornament_y_offset_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_ornament_y_offset_staff_spaces');
-    _setNotationOrnamentStackGapStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_ornament_stack_gap_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_ornament_stack_gap_staff_spaces');
-    _getNotationOrnamentStackGapStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_ornament_stack_gap_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_ornament_stack_gap_staff_spaces');
-    _setNotationOrnamentFontSize = _dylib.lookupFunction<mxml_options_set_notation_ornament_font_size_func, OptionsSetDouble>('mxml_options_set_notation_ornament_font_size');
-    _getNotationOrnamentFontSize = _dylib.lookupFunction<mxml_options_get_notation_ornament_font_size_func, OptionsGetDouble>('mxml_options_get_notation_ornament_font_size');
-    _setNotationStaffDistanceStaffSpaces = _dylib.lookupFunction<mxml_options_set_notation_staff_distance_staff_spaces_func, OptionsSetDouble>('mxml_options_set_notation_staff_distance_staff_spaces');
-    _getNotationStaffDistanceStaffSpaces = _dylib.lookupFunction<mxml_options_get_notation_staff_distance_staff_spaces_func, OptionsGetDouble>('mxml_options_get_notation_staff_distance_staff_spaces');
-    _setColorsDarkMode = _dylib.lookupFunction<mxml_options_set_colors_dark_mode_func, OptionsSetBool>('mxml_options_set_colors_dark_mode');
-    _getColorsDarkMode = _dylib.lookupFunction<mxml_options_get_colors_dark_mode_func, OptionsGetBool>('mxml_options_get_colors_dark_mode');
-    _setColorsDefaultColorMusic = _dylib.lookupFunction<mxml_options_set_colors_default_color_music_func, OptionsSetString>('mxml_options_set_colors_default_color_music');
-    _getColorsDefaultColorMusic = _dylib.lookupFunction<mxml_options_get_colors_default_color_music_func, OptionsGetString>('mxml_options_get_colors_default_color_music');
-    _setColorsDefaultColorNotehead = _dylib.lookupFunction<mxml_options_set_colors_default_color_notehead_func, OptionsSetString>('mxml_options_set_colors_default_color_notehead');
-    _getColorsDefaultColorNotehead = _dylib.lookupFunction<mxml_options_get_colors_default_color_notehead_func, OptionsGetString>('mxml_options_get_colors_default_color_notehead');
-    _setColorsDefaultColorStem = _dylib.lookupFunction<mxml_options_set_colors_default_color_stem_func, OptionsSetString>('mxml_options_set_colors_default_color_stem');
-    _getColorsDefaultColorStem = _dylib.lookupFunction<mxml_options_get_colors_default_color_stem_func, OptionsGetString>('mxml_options_get_colors_default_color_stem');
-    _setColorsDefaultColorRest = _dylib.lookupFunction<mxml_options_set_colors_default_color_rest_func, OptionsSetString>('mxml_options_set_colors_default_color_rest');
-    _getColorsDefaultColorRest = _dylib.lookupFunction<mxml_options_get_colors_default_color_rest_func, OptionsGetString>('mxml_options_get_colors_default_color_rest');
-    _setColorsDefaultColorLabel = _dylib.lookupFunction<mxml_options_set_colors_default_color_label_func, OptionsSetString>('mxml_options_set_colors_default_color_label');
-    _getColorsDefaultColorLabel = _dylib.lookupFunction<mxml_options_get_colors_default_color_label_func, OptionsGetString>('mxml_options_get_colors_default_color_label');
-    _setColorsDefaultColorTitle = _dylib.lookupFunction<mxml_options_set_colors_default_color_title_func, OptionsSetString>('mxml_options_set_colors_default_color_title');
-    _getColorsDefaultColorTitle = _dylib.lookupFunction<mxml_options_get_colors_default_color_title_func, OptionsGetString>('mxml_options_get_colors_default_color_title');
-    _setColorsColoringEnabled = _dylib.lookupFunction<mxml_options_set_colors_coloring_enabled_func, OptionsSetBool>('mxml_options_set_colors_coloring_enabled');
-    _getColorsColoringEnabled = _dylib.lookupFunction<mxml_options_get_colors_coloring_enabled_func, OptionsGetBool>('mxml_options_get_colors_coloring_enabled');
-    _setColorsColoringMode = _dylib.lookupFunction<mxml_options_set_colors_coloring_mode_func, OptionsSetString>('mxml_options_set_colors_coloring_mode');
-    _getColorsColoringMode = _dylib.lookupFunction<mxml_options_get_colors_coloring_mode_func, OptionsGetString>('mxml_options_get_colors_coloring_mode');
-    _setColorsColorStemsLikeNoteheads = _dylib.lookupFunction<mxml_options_set_colors_color_stems_like_noteheads_func, OptionsSetBool>('mxml_options_set_colors_color_stems_like_noteheads');
-    _getColorsColorStemsLikeNoteheads = _dylib.lookupFunction<mxml_options_get_colors_color_stems_like_noteheads_func, OptionsGetBool>('mxml_options_get_colors_color_stems_like_noteheads');
-    _setColorsColoringSetCustom = _dylib.lookupFunction<mxml_options_set_colors_coloring_set_custom_func, OptionsSetStringList>('mxml_options_set_colors_coloring_set_custom');
-    _getColorsColoringSetCustomCount = _dylib.lookupFunction<mxml_options_get_colors_coloring_set_custom_count_func, OptionsGetStringListCount>('mxml_options_get_colors_coloring_set_custom_count');
-    _getColorsColoringSetCustomAt = _dylib.lookupFunction<mxml_options_get_colors_coloring_set_custom_at_func, OptionsGetStringListAt>('mxml_options_get_colors_coloring_set_custom_at');
-    _setPerformanceEnableGlyphCache = _dylib.lookupFunction<mxml_options_set_performance_enable_glyph_cache_func, OptionsSetBool>('mxml_options_set_performance_enable_glyph_cache');
-    _getPerformanceEnableGlyphCache = _dylib.lookupFunction<mxml_options_get_performance_enable_glyph_cache_func, OptionsGetBool>('mxml_options_get_performance_enable_glyph_cache');
-    _setPerformanceEnableSpatialIndexing = _dylib.lookupFunction<mxml_options_set_performance_enable_spatial_indexing_func, OptionsSetBool>('mxml_options_set_performance_enable_spatial_indexing');
-    _getPerformanceEnableSpatialIndexing = _dylib.lookupFunction<mxml_options_get_performance_enable_spatial_indexing_func, OptionsGetBool>('mxml_options_get_performance_enable_spatial_indexing');
-    _setPerformanceSkyBottomLineBatchMinMeasures = _dylib.lookupFunction<mxml_options_set_performance_sky_bottom_line_batch_min_measures_func, OptionsSetInt>('mxml_options_set_performance_sky_bottom_line_batch_min_measures');
-    _getPerformanceSkyBottomLineBatchMinMeasures = _dylib.lookupFunction<mxml_options_get_performance_sky_bottom_line_batch_min_measures_func, OptionsGetInt>('mxml_options_get_performance_sky_bottom_line_batch_min_measures');
-    _setPerformanceSvgPrecision = _dylib.lookupFunction<mxml_options_set_performance_svg_precision_func, OptionsSetInt>('mxml_options_set_performance_svg_precision');
-    _getPerformanceSvgPrecision = _dylib.lookupFunction<mxml_options_get_performance_svg_precision_func, OptionsGetInt>('mxml_options_get_performance_svg_precision');
-    _setPerformanceBenchEnable = _dylib.lookupFunction<mxml_options_set_performance_bench_enable_func, OptionsSetBool>('mxml_options_set_performance_bench_enable');
-    _getPerformanceBenchEnable = _dylib.lookupFunction<mxml_options_get_performance_bench_enable_func, OptionsGetBool>('mxml_options_get_performance_bench_enable');
-    _setBackend = _dylib.lookupFunction<mxml_options_set_backend_func, OptionsSetString>('mxml_options_set_backend');
-    _getBackend = _dylib.lookupFunction<mxml_options_get_backend_func, OptionsGetString>('mxml_options_get_backend');
-    _setZoom = _dylib.lookupFunction<mxml_options_set_zoom_func, OptionsSetDouble>('mxml_options_set_zoom');
-    _getZoom = _dylib.lookupFunction<mxml_options_get_zoom_func, OptionsGetDouble>('mxml_options_get_zoom');
-    _setSheetMaximumWidth = _dylib.lookupFunction<mxml_options_set_sheet_maximum_width_func, OptionsSetDouble>('mxml_options_set_sheet_maximum_width');
-    _getSheetMaximumWidth = _dylib.lookupFunction<mxml_options_get_sheet_maximum_width_func, OptionsGetDouble>('mxml_options_get_sheet_maximum_width');
+    _create = _library.create;
+    _destroy = _library.destroy;
+    _loadFile = _library.loadFile;
+    _layout = _library.layout;
+    _getHeight = _library.getHeight;
+    _getGlyphCodepoint = _library.getGlyphCodepoint;
+    _getRenderCommands = _library.getRenderCommands;
+    _getString = _library.getString;
+    _writeSvgToFile = _library.writeSvgToFile;
+    _getPipelineBench = _library.getPipelineBench;
+    _optionsCreate = _library.optionsCreate;
+    _optionsDestroy = _library.optionsDestroy;
+    _optionsApplyStandard = _library.optionsApplyStandard;
+    _optionsApplyPiano = _library.optionsApplyPiano;
+    _optionsApplyPianoPedagogic = _library.optionsApplyPianoPedagogic;
+    _optionsApplyCompact = _library.optionsApplyCompact;
+    _optionsApplyPrint = _library.optionsApplyPrint;
+    _layoutWithOptions = _library.layoutWithOptions;
+    _setRenderingDrawTitle = _library.setRenderingDrawTitle;
+    _getRenderingDrawTitle = _library.getRenderingDrawTitle;
+    _setRenderingDrawPartNames = _library.setRenderingDrawPartNames;
+    _getRenderingDrawPartNames = _library.getRenderingDrawPartNames;
+    _setRenderingDrawMeasureNumbers = _library.setRenderingDrawMeasureNumbers;
+    _getRenderingDrawMeasureNumbers = _library.getRenderingDrawMeasureNumbers;
+    _setRenderingDrawMeasureNumbersOnlyAtSystemStart = _library.setRenderingDrawMeasureNumbersOnlyAtSystemStart;
+    _getRenderingDrawMeasureNumbersOnlyAtSystemStart = _library.getRenderingDrawMeasureNumbersOnlyAtSystemStart;
+    _setRenderingDrawMeasureNumbersBegin = _library.setRenderingDrawMeasureNumbersBegin;
+    _getRenderingDrawMeasureNumbersBegin = _library.getRenderingDrawMeasureNumbersBegin;
+    _setRenderingMeasureNumberInterval = _library.setRenderingMeasureNumberInterval;
+    _getRenderingMeasureNumberInterval = _library.getRenderingMeasureNumberInterval;
+    _setRenderingDrawTimeSignatures = _library.setRenderingDrawTimeSignatures;
+    _getRenderingDrawTimeSignatures = _library.getRenderingDrawTimeSignatures;
+    _setRenderingDrawKeySignatures = _library.setRenderingDrawKeySignatures;
+    _getRenderingDrawKeySignatures = _library.getRenderingDrawKeySignatures;
+    _setRenderingDrawFingerings = _library.setRenderingDrawFingerings;
+    _getRenderingDrawFingerings = _library.getRenderingDrawFingerings;
+    _setRenderingDrawSlurs = _library.setRenderingDrawSlurs;
+    _getRenderingDrawSlurs = _library.getRenderingDrawSlurs;
+    _setRenderingDrawPedals = _library.setRenderingDrawPedals;
+    _getRenderingDrawPedals = _library.getRenderingDrawPedals;
+    _setRenderingDrawDynamics = _library.setRenderingDrawDynamics;
+    _getRenderingDrawDynamics = _library.getRenderingDrawDynamics;
+    _setRenderingDrawWedges = _library.setRenderingDrawWedges;
+    _getRenderingDrawWedges = _library.getRenderingDrawWedges;
+    _setRenderingDrawLyrics = _library.setRenderingDrawLyrics;
+    _getRenderingDrawLyrics = _library.getRenderingDrawLyrics;
+    _setRenderingDrawCredits = _library.setRenderingDrawCredits;
+    _getRenderingDrawCredits = _library.getRenderingDrawCredits;
+    _setRenderingDrawComposer = _library.setRenderingDrawComposer;
+    _getRenderingDrawComposer = _library.getRenderingDrawComposer;
+    _setRenderingDrawLyricist = _library.setRenderingDrawLyricist;
+    _getRenderingDrawLyricist = _library.getRenderingDrawLyricist;
+    _setLayoutPageFormat = _library.setLayoutPageFormat;
+    _getLayoutPageFormat = _library.getLayoutPageFormat;
+    _setLayoutUseFixedCanvas = _library.setLayoutUseFixedCanvas;
+    _getLayoutUseFixedCanvas = _library.getLayoutUseFixedCanvas;
+    _setLayoutFixedCanvasWidth = _library.setLayoutFixedCanvasWidth;
+    _getLayoutFixedCanvasWidth = _library.getLayoutFixedCanvasWidth;
+    _setLayoutFixedCanvasHeight = _library.setLayoutFixedCanvasHeight;
+    _getLayoutFixedCanvasHeight = _library.getLayoutFixedCanvasHeight;
+    _setLayoutPageHeight = _library.setLayoutPageHeight;
+    _getLayoutPageHeight = _library.getLayoutPageHeight;
+    _setLayoutPageMarginLeftStaffSpaces = _library.setLayoutPageMarginLeftStaffSpaces;
+    _getLayoutPageMarginLeftStaffSpaces = _library.getLayoutPageMarginLeftStaffSpaces;
+    _setLayoutPageMarginRightStaffSpaces = _library.setLayoutPageMarginRightStaffSpaces;
+    _getLayoutPageMarginRightStaffSpaces = _library.getLayoutPageMarginRightStaffSpaces;
+    _setLayoutPageMarginTopStaffSpaces = _library.setLayoutPageMarginTopStaffSpaces;
+    _getLayoutPageMarginTopStaffSpaces = _library.getLayoutPageMarginTopStaffSpaces;
+    _setLayoutPageMarginBottomStaffSpaces = _library.setLayoutPageMarginBottomStaffSpaces;
+    _getLayoutPageMarginBottomStaffSpaces = _library.getLayoutPageMarginBottomStaffSpaces;
+    _setLayoutSystemSpacingMinStaffSpaces = _library.setLayoutSystemSpacingMinStaffSpaces;
+    _getLayoutSystemSpacingMinStaffSpaces = _library.getLayoutSystemSpacingMinStaffSpaces;
+    _setLayoutSystemSpacingMultiStaffMinStaffSpaces = _library.setLayoutSystemSpacingMultiStaffMinStaffSpaces;
+    _getLayoutSystemSpacingMultiStaffMinStaffSpaces = _library.getLayoutSystemSpacingMultiStaffMinStaffSpaces;
+    _setLayoutNewSystemFromXml = _library.setLayoutNewSystemFromXml;
+    _getLayoutNewSystemFromXml = _library.getLayoutNewSystemFromXml;
+    _setLayoutNewPageFromXml = _library.setLayoutNewPageFromXml;
+    _getLayoutNewPageFromXml = _library.getLayoutNewPageFromXml;
+    _setLayoutFillEmptyMeasuresWithWholeRest = _library.setLayoutFillEmptyMeasuresWithWholeRest;
+    _getLayoutFillEmptyMeasuresWithWholeRest = _library.getLayoutFillEmptyMeasuresWithWholeRest;
+    _setLineBreakingJustificationRatioMin = _library.setLineBreakingJustificationRatioMin;
+    _getLineBreakingJustificationRatioMin = _library.getLineBreakingJustificationRatioMin;
+    _setLineBreakingJustificationRatioMax = _library.setLineBreakingJustificationRatioMax;
+    _getLineBreakingJustificationRatioMax = _library.getLineBreakingJustificationRatioMax;
+    _setLineBreakingJustificationRatioTarget = _library.setLineBreakingJustificationRatioTarget;
+    _getLineBreakingJustificationRatioTarget = _library.getLineBreakingJustificationRatioTarget;
+    _setLineBreakingJustificationRatioSoftMin = _library.setLineBreakingJustificationRatioSoftMin;
+    _getLineBreakingJustificationRatioSoftMin = _library.getLineBreakingJustificationRatioSoftMin;
+    _setLineBreakingJustificationRatioSoftMax = _library.setLineBreakingJustificationRatioSoftMax;
+    _getLineBreakingJustificationRatioSoftMax = _library.getLineBreakingJustificationRatioSoftMax;
+    _setLineBreakingWeightRatio = _library.setLineBreakingWeightRatio;
+    _getLineBreakingWeightRatio = _library.getLineBreakingWeightRatio;
+    _setLineBreakingWeightTight = _library.setLineBreakingWeightTight;
+    _getLineBreakingWeightTight = _library.getLineBreakingWeightTight;
+    _setLineBreakingWeightLoose = _library.setLineBreakingWeightLoose;
+    _getLineBreakingWeightLoose = _library.getLineBreakingWeightLoose;
+    _setLineBreakingWeightLastUnder = _library.setLineBreakingWeightLastUnder;
+    _getLineBreakingWeightLastUnder = _library.getLineBreakingWeightLastUnder;
+    _setLineBreakingCostPower = _library.setLineBreakingCostPower;
+    _getLineBreakingCostPower = _library.getLineBreakingCostPower;
+    _setLineBreakingStretchLastSystem = _library.setLineBreakingStretchLastSystem;
+    _getLineBreakingStretchLastSystem = _library.getLineBreakingStretchLastSystem;
+    _setLineBreakingLastLineMaxUnderfill = _library.setLineBreakingLastLineMaxUnderfill;
+    _getLineBreakingLastLineMaxUnderfill = _library.getLineBreakingLastLineMaxUnderfill;
+    _setLineBreakingTargetMeasuresPerSystem = _library.setLineBreakingTargetMeasuresPerSystem;
+    _getLineBreakingTargetMeasuresPerSystem = _library.getLineBreakingTargetMeasuresPerSystem;
+    _setLineBreakingWeightCount = _library.setLineBreakingWeightCount;
+    _getLineBreakingWeightCount = _library.getLineBreakingWeightCount;
+    _setLineBreakingBonusFinalBar = _library.setLineBreakingBonusFinalBar;
+    _getLineBreakingBonusFinalBar = _library.getLineBreakingBonusFinalBar;
+    _setLineBreakingBonusDoubleBar = _library.setLineBreakingBonusDoubleBar;
+    _getLineBreakingBonusDoubleBar = _library.getLineBreakingBonusDoubleBar;
+    _setLineBreakingBonusPhrasEnd = _library.setLineBreakingBonusPhrasEnd;
+    _getLineBreakingBonusPhrasEnd = _library.getLineBreakingBonusPhrasEnd;
+    _setLineBreakingBonusRehearsalMark = _library.setLineBreakingBonusRehearsalMark;
+    _getLineBreakingBonusRehearsalMark = _library.getLineBreakingBonusRehearsalMark;
+    _setLineBreakingPenaltyHairpinAcross = _library.setLineBreakingPenaltyHairpinAcross;
+    _getLineBreakingPenaltyHairpinAcross = _library.getLineBreakingPenaltyHairpinAcross;
+    _setLineBreakingPenaltySlurAcross = _library.setLineBreakingPenaltySlurAcross;
+    _getLineBreakingPenaltySlurAcross = _library.getLineBreakingPenaltySlurAcross;
+    _setLineBreakingPenaltyLyricsHyphen = _library.setLineBreakingPenaltyLyricsHyphen;
+    _getLineBreakingPenaltyLyricsHyphen = _library.getLineBreakingPenaltyLyricsHyphen;
+    _setLineBreakingPenaltyTieAcross = _library.setLineBreakingPenaltyTieAcross;
+    _getLineBreakingPenaltyTieAcross = _library.getLineBreakingPenaltyTieAcross;
+    _setLineBreakingPenaltyClefChange = _library.setLineBreakingPenaltyClefChange;
+    _getLineBreakingPenaltyClefChange = _library.getLineBreakingPenaltyClefChange;
+    _setLineBreakingPenaltyKeyTimeChange = _library.setLineBreakingPenaltyKeyTimeChange;
+    _getLineBreakingPenaltyKeyTimeChange = _library.getLineBreakingPenaltyKeyTimeChange;
+    _setLineBreakingPenaltyTempoText = _library.setLineBreakingPenaltyTempoText;
+    _getLineBreakingPenaltyTempoText = _library.getLineBreakingPenaltyTempoText;
+    _setLineBreakingEnableTwoPassOptimization = _library.setLineBreakingEnableTwoPassOptimization;
+    _getLineBreakingEnableTwoPassOptimization = _library.getLineBreakingEnableTwoPassOptimization;
+    _setLineBreakingEnableBreakFeatures = _library.setLineBreakingEnableBreakFeatures;
+    _getLineBreakingEnableBreakFeatures = _library.getLineBreakingEnableBreakFeatures;
+    _setLineBreakingEnableSystemLevelSpacing = _library.setLineBreakingEnableSystemLevelSpacing;
+    _getLineBreakingEnableSystemLevelSpacing = _library.getLineBreakingEnableSystemLevelSpacing;
+    _setLineBreakingMaxMeasuresPerLine = _library.setLineBreakingMaxMeasuresPerLine;
+    _getLineBreakingMaxMeasuresPerLine = _library.getLineBreakingMaxMeasuresPerLine;
+    _setNotationAutoBeam = _library.setNotationAutoBeam;
+    _getNotationAutoBeam = _library.getNotationAutoBeam;
+    _setNotationTupletsBracketed = _library.setNotationTupletsBracketed;
+    _getNotationTupletsBracketed = _library.getNotationTupletsBracketed;
+    _setNotationTripletsBracketed = _library.setNotationTripletsBracketed;
+    _getNotationTripletsBracketed = _library.getNotationTripletsBracketed;
+    _setNotationTupletsRatioed = _library.setNotationTupletsRatioed;
+    _getNotationTupletsRatioed = _library.getNotationTupletsRatioed;
+    _setNotationAlignRests = _library.setNotationAlignRests;
+    _getNotationAlignRests = _library.getNotationAlignRests;
+    _setNotationSetWantedStemDirectionByXml = _library.setNotationSetWantedStemDirectionByXml;
+    _getNotationSetWantedStemDirectionByXml = _library.getNotationSetWantedStemDirectionByXml;
+    _setNotationSlurLiftSampleCount = _library.setNotationSlurLiftSampleCount;
+    _getNotationSlurLiftSampleCount = _library.getNotationSlurLiftSampleCount;
+    _setNotationFingeringPosition = _library.setNotationFingeringPosition;
+    _getNotationFingeringPosition = _library.getNotationFingeringPosition;
+    _setNotationFingeringInsideStafflines = _library.setNotationFingeringInsideStafflines;
+    _getNotationFingeringInsideStafflines = _library.getNotationFingeringInsideStafflines;
+    _setNotationFingeringYOffsetStaffSpaces = _library.setNotationFingeringYOffsetStaffSpaces;
+    _getNotationFingeringYOffsetStaffSpaces = _library.getNotationFingeringYOffsetStaffSpaces;
+    _setNotationFingeringFontSize = _library.setNotationFingeringFontSize;
+    _getNotationFingeringFontSize = _library.getNotationFingeringFontSize;
+    _setNotationPedalYOffsetStaffSpaces = _library.setNotationPedalYOffsetStaffSpaces;
+    _getNotationPedalYOffsetStaffSpaces = _library.getNotationPedalYOffsetStaffSpaces;
+    _setNotationPedalLineThicknessStaffSpaces = _library.setNotationPedalLineThicknessStaffSpaces;
+    _getNotationPedalLineThicknessStaffSpaces = _library.getNotationPedalLineThicknessStaffSpaces;
+    _setNotationPedalTextFontSize = _library.setNotationPedalTextFontSize;
+    _getNotationPedalTextFontSize = _library.getNotationPedalTextFontSize;
+    _setNotationPedalTextToLineStartStaffSpaces = _library.setNotationPedalTextToLineStartStaffSpaces;
+    _getNotationPedalTextToLineStartStaffSpaces = _library.getNotationPedalTextToLineStartStaffSpaces;
+    _setNotationPedalLineToEndSymbolGapStaffSpaces = _library.setNotationPedalLineToEndSymbolGapStaffSpaces;
+    _getNotationPedalLineToEndSymbolGapStaffSpaces = _library.getNotationPedalLineToEndSymbolGapStaffSpaces;
+    _setNotationPedalChangeNotchHeightStaffSpaces = _library.setNotationPedalChangeNotchHeightStaffSpaces;
+    _getNotationPedalChangeNotchHeightStaffSpaces = _library.getNotationPedalChangeNotchHeightStaffSpaces;
+    _setNotationDynamicsYOffsetStaffSpaces = _library.setNotationDynamicsYOffsetStaffSpaces;
+    _getNotationDynamicsYOffsetStaffSpaces = _library.getNotationDynamicsYOffsetStaffSpaces;
+    _setNotationDynamicsFontSize = _library.setNotationDynamicsFontSize;
+    _getNotationDynamicsFontSize = _library.getNotationDynamicsFontSize;
+    _setNotationWedgeYOffsetStaffSpaces = _library.setNotationWedgeYOffsetStaffSpaces;
+    _getNotationWedgeYOffsetStaffSpaces = _library.getNotationWedgeYOffsetStaffSpaces;
+    _setNotationWedgeHeightStaffSpaces = _library.setNotationWedgeHeightStaffSpaces;
+    _getNotationWedgeHeightStaffSpaces = _library.getNotationWedgeHeightStaffSpaces;
+    _setNotationWedgeLineThicknessStaffSpaces = _library.setNotationWedgeLineThicknessStaffSpaces;
+    _getNotationWedgeLineThicknessStaffSpaces = _library.getNotationWedgeLineThicknessStaffSpaces;
+    _setNotationWedgeInsetFromEndsStaffSpaces = _library.setNotationWedgeInsetFromEndsStaffSpaces;
+    _getNotationWedgeInsetFromEndsStaffSpaces = _library.getNotationWedgeInsetFromEndsStaffSpaces;
+    _setNotationLyricsYOffsetStaffSpaces = _library.setNotationLyricsYOffsetStaffSpaces;
+    _getNotationLyricsYOffsetStaffSpaces = _library.getNotationLyricsYOffsetStaffSpaces;
+    _setNotationLyricsFontSize = _library.setNotationLyricsFontSize;
+    _getNotationLyricsFontSize = _library.getNotationLyricsFontSize;
+    _setNotationLyricsHyphenMinGapStaffSpaces = _library.setNotationLyricsHyphenMinGapStaffSpaces;
+    _getNotationLyricsHyphenMinGapStaffSpaces = _library.getNotationLyricsHyphenMinGapStaffSpaces;
+    _setNotationArticulationOffsetStaffSpaces = _library.setNotationArticulationOffsetStaffSpaces;
+    _getNotationArticulationOffsetStaffSpaces = _library.getNotationArticulationOffsetStaffSpaces;
+    _setNotationArticulationStackGapStaffSpaces = _library.setNotationArticulationStackGapStaffSpaces;
+    _getNotationArticulationStackGapStaffSpaces = _library.getNotationArticulationStackGapStaffSpaces;
+    _setNotationArticulationLineThicknessStaffSpaces = _library.setNotationArticulationLineThicknessStaffSpaces;
+    _getNotationArticulationLineThicknessStaffSpaces = _library.getNotationArticulationLineThicknessStaffSpaces;
+    _setNotationTenutoLengthStaffSpaces = _library.setNotationTenutoLengthStaffSpaces;
+    _getNotationTenutoLengthStaffSpaces = _library.getNotationTenutoLengthStaffSpaces;
+    _setNotationAccentWidthStaffSpaces = _library.setNotationAccentWidthStaffSpaces;
+    _getNotationAccentWidthStaffSpaces = _library.getNotationAccentWidthStaffSpaces;
+    _setNotationAccentHeightStaffSpaces = _library.setNotationAccentHeightStaffSpaces;
+    _getNotationAccentHeightStaffSpaces = _library.getNotationAccentHeightStaffSpaces;
+    _setNotationMarcatoWidthStaffSpaces = _library.setNotationMarcatoWidthStaffSpaces;
+    _getNotationMarcatoWidthStaffSpaces = _library.getNotationMarcatoWidthStaffSpaces;
+    _setNotationMarcatoHeightStaffSpaces = _library.setNotationMarcatoHeightStaffSpaces;
+    _getNotationMarcatoHeightStaffSpaces = _library.getNotationMarcatoHeightStaffSpaces;
+    _setNotationStaccatoDotScale = _library.setNotationStaccatoDotScale;
+    _getNotationStaccatoDotScale = _library.getNotationStaccatoDotScale;
+    _setNotationFermataYOffsetStaffSpaces = _library.setNotationFermataYOffsetStaffSpaces;
+    _getNotationFermataYOffsetStaffSpaces = _library.getNotationFermataYOffsetStaffSpaces;
+    _setNotationFermataDotToArcStaffSpaces = _library.setNotationFermataDotToArcStaffSpaces;
+    _getNotationFermataDotToArcStaffSpaces = _library.getNotationFermataDotToArcStaffSpaces;
+    _setNotationFermataWidthStaffSpaces = _library.setNotationFermataWidthStaffSpaces;
+    _getNotationFermataWidthStaffSpaces = _library.getNotationFermataWidthStaffSpaces;
+    _setNotationFermataHeightStaffSpaces = _library.setNotationFermataHeightStaffSpaces;
+    _getNotationFermataHeightStaffSpaces = _library.getNotationFermataHeightStaffSpaces;
+    _setNotationFermataThicknessStartStaffSpaces = _library.setNotationFermataThicknessStartStaffSpaces;
+    _getNotationFermataThicknessStartStaffSpaces = _library.getNotationFermataThicknessStartStaffSpaces;
+    _setNotationFermataThicknessMidStaffSpaces = _library.setNotationFermataThicknessMidStaffSpaces;
+    _getNotationFermataThicknessMidStaffSpaces = _library.getNotationFermataThicknessMidStaffSpaces;
+    _setNotationFermataDotScale = _library.setNotationFermataDotScale;
+    _getNotationFermataDotScale = _library.getNotationFermataDotScale;
+    _setNotationOrnamentYOffsetStaffSpaces = _library.setNotationOrnamentYOffsetStaffSpaces;
+    _getNotationOrnamentYOffsetStaffSpaces = _library.getNotationOrnamentYOffsetStaffSpaces;
+    _setNotationOrnamentStackGapStaffSpaces = _library.setNotationOrnamentStackGapStaffSpaces;
+    _getNotationOrnamentStackGapStaffSpaces = _library.getNotationOrnamentStackGapStaffSpaces;
+    _setNotationOrnamentFontSize = _library.setNotationOrnamentFontSize;
+    _getNotationOrnamentFontSize = _library.getNotationOrnamentFontSize;
+    _setNotationStaffDistanceStaffSpaces = _library.setNotationStaffDistanceStaffSpaces;
+    _getNotationStaffDistanceStaffSpaces = _library.getNotationStaffDistanceStaffSpaces;
+    _setColorsDarkMode = _library.setColorsDarkMode;
+    _getColorsDarkMode = _library.getColorsDarkMode;
+    _setColorsDefaultColorMusic = _library.setColorsDefaultColorMusic;
+    _getColorsDefaultColorMusic = _library.getColorsDefaultColorMusic;
+    _setColorsDefaultColorNotehead = _library.setColorsDefaultColorNotehead;
+    _getColorsDefaultColorNotehead = _library.getColorsDefaultColorNotehead;
+    _setColorsDefaultColorStem = _library.setColorsDefaultColorStem;
+    _getColorsDefaultColorStem = _library.getColorsDefaultColorStem;
+    _setColorsDefaultColorRest = _library.setColorsDefaultColorRest;
+    _getColorsDefaultColorRest = _library.getColorsDefaultColorRest;
+    _setColorsDefaultColorLabel = _library.setColorsDefaultColorLabel;
+    _getColorsDefaultColorLabel = _library.getColorsDefaultColorLabel;
+    _setColorsDefaultColorTitle = _library.setColorsDefaultColorTitle;
+    _getColorsDefaultColorTitle = _library.getColorsDefaultColorTitle;
+    _setColorsColoringEnabled = _library.setColorsColoringEnabled;
+    _getColorsColoringEnabled = _library.getColorsColoringEnabled;
+    _setColorsColoringMode = _library.setColorsColoringMode;
+    _getColorsColoringMode = _library.getColorsColoringMode;
+    _setColorsColorStemsLikeNoteheads = _library.setColorsColorStemsLikeNoteheads;
+    _getColorsColorStemsLikeNoteheads = _library.getColorsColorStemsLikeNoteheads;
+    _setColorsColoringSetCustom = _library.setColorsColoringSetCustom;
+    _getColorsColoringSetCustomCount = _library.getColorsColoringSetCustomCount;
+    _getColorsColoringSetCustomAt = _library.getColorsColoringSetCustomAt;
+    _setPerformanceEnableGlyphCache = _library.setPerformanceEnableGlyphCache;
+    _getPerformanceEnableGlyphCache = _library.getPerformanceEnableGlyphCache;
+    _setPerformanceEnableSpatialIndexing = _library.setPerformanceEnableSpatialIndexing;
+    _getPerformanceEnableSpatialIndexing = _library.getPerformanceEnableSpatialIndexing;
+    _setPerformanceSkyBottomLineBatchMinMeasures = _library.setPerformanceSkyBottomLineBatchMinMeasures;
+    _getPerformanceSkyBottomLineBatchMinMeasures = _library.getPerformanceSkyBottomLineBatchMinMeasures;
+    _setPerformanceSvgPrecision = _library.setPerformanceSvgPrecision;
+    _getPerformanceSvgPrecision = _library.getPerformanceSvgPrecision;
+    _setPerformanceBenchEnable = _library.setPerformanceBenchEnable;
+    _getPerformanceBenchEnable = _library.getPerformanceBenchEnable;
+    _setBackend = _library.setBackend;
+    _getBackend = _library.getBackend;
+    _setZoom = _library.setZoom;
+    _getZoom = _library.getZoom;
+    _setSheetMaximumWidth = _library.setSheetMaximumWidth;
+    _getSheetMaximumWidth = _library.getSheetMaximumWidth;
 
     _initialized = true;
   }
