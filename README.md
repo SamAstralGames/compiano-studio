@@ -2,25 +2,34 @@
 
 **Compiano Studio** est une application d'apprentissage du piano assistée par IA, construite sur un moteur de rendu musical C++ haute performance intégré dans Flutter.
 
-Ce projet sert d'implémentation de référence pour l'intégration de la bibliothèque `mXMLConverter` via **Dart FFI**, démontrant une architecture "Zero-Copy" pour un rendu graphique fluide (60fps) de partitions complexes.
+Plus qu'un simple lecteur, c'est une **Académie de Piano Virtuelle** qui combine la précision mathématique du C++ avec l'intelligence pédagogique de l'IA pour offrir un coaching de niveau conservatoire, basé sur les principes d'Alfred Cortot.
 
 ---
 
-## ✨ Fonctionnalités Clés
+## ✨ Fonctionnalités & Modèle
 
-### Moteur de Partition (Core)
-- **Formats supportés** : MusicXML (`.xml`, `.musicxml`) et MXL compressé.
-- **Rendu Haute Fidélité** : Utilisation du standard **SMuFL** (Bravura) pour une gravure musicale professionnelle.
-- **Performance** : Moteur C++ natif pour le parsing et le layout, rendu direct sur Canvas Flutter sans intermédiaire SVG.
-- **Personnalisation** : Plus de 50 options de gravure (espacements, polices, couleurs, mode sombre).
+### 🎹 Le Lecteur (Gratuit & Illimité)
+Un outil professionnel pour travailler vos propres fichiers MusicXML.
+- **Rendu Haute Fidélité** : Gravure SMuFL (Bravura) via moteur C++ natif (60fps).
+- **Imports Illimités** : Support complet du format MusicXML (`.xml`, `.mxl`).
+- **Outils de Travail** : Clavier virtuel, métronome visuel, feedback MIDI (Note jouée / attendue).
+- **Personnalisation** : +50 options de gravure (taille, espacements, mode sombre).
 
-### Studio d'Apprentissage (En cours)
-- **Clavier Virtuel** : Visualisation temps réel des notes.
-- **Mode Sombre** : Support natif pour le confort visuel.
-- **IA & Analyse** (Roadmap) :
-    - Détection automatique de la difficulté.
-    - Génération de routines de travail personnalisées.
-    - Suivi de progression via écoute active (Pitch Detection).
+### 🎓 L'Académie (Premium)
+Un professeur particulier disponible 24/7 sur le répertoire certifié.
+- **Catalogue Certifié** : Partitions validées avec doigtés d'experts (Cortot, Henle).
+- **Analyse Cortot** : Diagnostic technique basé sur les *Principes Rationnels* (Passage du pouce, Extension, Polyphonie).
+- **Coach IA** : Génération de routines de travail personnalisées et explications sémantiques des difficultés.
+- **Sécurité** : L'IA n'intervient que sur des données fiables pour éviter les mauvais conseils techniques.
+
+---
+
+## 🧠 Philosophie Pédagogique : "Maths + IA"
+
+Compiano Studio adopte une approche hybride unique :
+1.  **La Vérité Terrain (C++)** : Le moteur calcule des métriques objectives (intervalles, densité, isochronie) sans hallucination.
+2.  **L'Expertise (Cortot)** : Les difficultés sont classifiées selon les 5 piliers techniques du piano (Mobilité, Pouce, Polyphonie, Extension, Poignet).
+3.  **Le Pédagogue (Gemini)** : L'IA traduit ces données en conseils humains et bienveillants.
 
 ---
 

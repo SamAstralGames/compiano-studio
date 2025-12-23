@@ -95,6 +95,11 @@ Ce document trace la route pour le développement de **Compiano Studio**, une ap
 - [ ] **Heatmap d'Erreurs** : Identifier les mesures où l'élève se trompe le plus souvent.
 - [ ] **Adaptation du Cursus** : Suggérer des exercices techniques (Hanon, Czerny) spécifiques aux faiblesses détectées (ex: faiblesse main gauche -> Exercice MG).
 
+### 4.4. Feature : Catalogue Certifié (Walled Garden)
+- [x] **Structure de Données** : Définir le format JSON pour les métadonnées pédagogiques (Tags Cortot, Doigtés validés).
+- [x] **Catalog Service** : Service Dart pour lister les morceaux certifiés et filtrer par difficulté.
+- [ ] **Restriction IA** : Désactiver les features d'analyse avancée pour les fichiers importés (Mode "Lecteur Seul").
+
 ---
 
 ## 5. Epic : Architecture & Qualité

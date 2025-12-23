@@ -4,6 +4,7 @@ import 'ui/score_page.dart';
 import 'ui/library_page.dart';
 import 'ui/debug_page.dart';
 import 'ui/settings/settings_page.dart';
+import 'logic/score/score_controller.dart';
 
 
 void main() {
@@ -42,6 +43,21 @@ class _MainShellState extends State<MainShell> {
   Duration _animationDuration = Duration.zero; // Durée dynamique (0 par défaut pour le resize)
   Timer? _animationTimer;
   String? _currentScorePath; // Le fichier actuellement ouvert
+  late final ScoreController _scoreController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Controleur partage pour la partition et la console debug.
+    _scoreController = ScoreController();
+  }
+
+  @override
+  void dispose() {
+    // Libere les ressources FFI au moment de quitter l'app.
+    _scoreController.dispose();
+    super.dispose();
+  }
 
   // Nouvelle méthode pour ouvrir un score spécifique
   void _openScore(String path) {
@@ -67,7 +83,7 @@ class _MainShellState extends State<MainShell> {
       PlaceholderPage(title: 'Exercices (Cursus)', color: Colors.orange, onOpenScore: _toggleScore),
       LibraryPage(onScoreSelected: _openScore), // On remplace le placeholder par la vraie bibliothèque
       SettingsPage(), //const PlaceholderPage(title: 'Settings', color: Colors.blue),
-      DebugPage(),
+      DebugPage(controller: _scoreController),
       //const PlaceholderPage(title: 'Debug', color: Colors.grey),
     ];
 
@@ -88,6 +104,7 @@ class _MainShellState extends State<MainShell> {
             // COUCHE 1 : La Partition (en dessous)
             Positioned.fill(
               child: ScorePage(
+                controller: _scoreController,
                 onClose: _toggleScore,
                 filePath: _currentScorePath, // On passe le fichier sélectionné
               ),

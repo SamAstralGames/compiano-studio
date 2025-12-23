@@ -4,12 +4,15 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 
 import '../core/bridge.dart';
+import '../logic/score/score_controller.dart';
 import '../options/definitions/options_catalog.dart';
 import '../options/options.dart';
 
 // Debug console page with a REPL-like command interface.
 class DebugPage extends StatefulWidget {
-  const DebugPage({super.key});
+  final ScoreController controller;
+
+  const DebugPage({super.key, required this.controller});
 
   @override
   State<DebugPage> createState() => _DebugPageState();
@@ -22,19 +25,24 @@ class _DebugPageState extends State<DebugPage> {
   static const double _outputLineSpacing = 4.0;
   static const int _maxOutputLines = 400;
 
-  final MXMLBridge _bridge = MXMLBridge();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _inputController = TextEditingController();
-
-  ffi.Pointer<MXMLHandle>? _handle;
-  ffi.Pointer<MXMLOptions>? _options;
 
   bool _ready = false;
   String _statusMessage = "Initializing...";
   double _lastLayoutWidth = 0.0;
 
-  String? _loadedPath;
-  bool _loadedOk = false;
+  // Acces rapide au controleur partage.
+  ScoreController get _controller => widget.controller;
+
+  // Acces rapide au bridge FFI.
+  MXMLBridge get _bridge => _controller.bridge;
+
+  // Acces rapide au handle courant.
+  ffi.Pointer<MXMLHandle>? get _handle => _controller.handle;
+
+  // Acces rapide aux options courantes.
+  ffi.Pointer<MXMLOptions>? get _options => _controller.options;
 
   final List<String> _outputLines = [];
   final List<String> _frontBufferLines = [];
@@ -63,13 +71,6 @@ class _DebugPageState extends State<DebugPage> {
 
   @override
   void dispose() {
-    // Dispose FFI resources safely.
-    if (_handle != null) {
-      _bridge.destroy(_handle!);
-    }
-    if (_options != null) {
-      _bridge.optionsDestroy(_options!);
-    }
     _scrollController.dispose();
     _inputController.dispose();
     super.dispose();
@@ -199,15 +200,17 @@ class _DebugPageState extends State<DebugPage> {
   // Initialize the bridge and preload options state.
   void _initializeBridge() {
     try {
-      MXMLBridge.initialize();
-      _handle = _bridge.create();
-      _options = _bridge.optionsCreate();
-      _bridge.optionsApplyStandard(_options!);
-      _reloadOptionsFromBridge();
-      _cacheDefaultsFromCurrent();
-      _ready = true;
-      _statusMessage = "Ready";
-      _appendOutput("Ready. Type 'help' to list commands.");
+      // Reutilise le controleur partage.
+      if (_controller.ready) {
+        _reloadOptionsFromBridge();
+        _cacheDefaultsFromCurrent();
+        _ready = true;
+        _statusMessage = "Ready";
+        _appendOutput("Ready. Type 'help' to list commands.");
+      } else {
+        _statusMessage = "Initialization failed";
+        _appendOutput(_statusMessage);
+      }
     } catch (e) {
       _statusMessage = "Initialization failed: $e";
       _appendOutput(_statusMessage);
@@ -340,9 +343,7 @@ class _DebugPageState extends State<DebugPage> {
       _appendOutput("Error: handle not initialized.");
       return;
     }
-    final ok = _bridge.loadFile(_handle!, path);
-    _loadedPath = path;
-    _loadedOk = true;
+    final ok = _controller.loadFile(path);
     _appendOutput("Loaded: $path ok=${ok ? 1 : 0}");
   }
 
@@ -487,8 +488,8 @@ class _DebugPageState extends State<DebugPage> {
 
   // Handle the state command.
   void _handleState() {
-    final path = _loadedPath ?? "";
-    final loaded = _loadedOk ? "1" : "0";
+    final path = _controller.loadedPath ?? "";
+    final loaded = _controller.loadedOk ? "1" : "0";
     _appendOutput("Loaded: $path ok=$loaded");
     _appendOutput("LayoutWidth: ${_lastLayoutWidth.toStringAsFixed(2)}");
   }
@@ -500,7 +501,7 @@ class _DebugPageState extends State<DebugPage> {
       return;
     }
     // Ensure a file is loaded.
-    if (!_loadedOk ) {
+    if (!_controller.loadedOk ) {
       _appendOutput("No file loaded. Use 'load <path>' first.");
       return;
     }
@@ -513,7 +514,7 @@ class _DebugPageState extends State<DebugPage> {
       _appendOutput("Invalid layout width. Resize the window and retry.");
       return;
     }
-    _bridge.layoutWithOptions(_handle!, _lastLayoutWidth, _options!);
+    _controller.layout(_lastLayoutWidth, useOptions: true);
     final count = _refreshFrontBuffer();
     _appendOutput("Processed: ok=1 commands=$count");
   }

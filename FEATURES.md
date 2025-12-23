@@ -69,6 +69,18 @@ Ces fonctionnalités visent à transformer l'application en professeur virtuel.
 
 ---
 
+## 5. Modèle Économique (Freemium)
+
+### Mode Gratuit (Reader)
+- **Import illimité** de fichiers MusicXML personnels.
+- Rendu haute qualité (Moteur C++).
+- Clavier virtuel et feedback MIDI basique (Note jouée / Note attendue).
+
+### Mode Premium (Academy)
+- **Accès au catalogue certifié** (Doigtés validés, Analyse Cortot).
+- **Coach IA H24** : Routines personnalisées, détection de fatigue, analyse biomécanique.
+- Suivi de progression détaillé et historique.
+
 ## 4. Performance & Benchmarks
 
 L'application intègre des outils de mesure pour garantir la fluidité (60fps).

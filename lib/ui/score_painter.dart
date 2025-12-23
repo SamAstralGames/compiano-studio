@@ -1,8 +1,15 @@
 import 'dart:ffi' as ffi;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/bridge.dart';
 
 class ScorePainter extends CustomPainter {
+  // Memoise les dernieres infos loggees pour eviter le spam.
+  static int? _lastLoggedCommandCount;
+  static int? _lastLoggedCommandsAddress;
+  static int? _lastLoggedHandleAddress;
+  static int? _lastLoggedFirstType;
+
   final ffi.Pointer<MXMLRenderCommandC>? commands;
   final int commandCount;
   final ffi.Pointer<MXMLHandle>? handle; // Pour récupérer les strings
@@ -14,8 +21,9 @@ class ScorePainter extends CustomPainter {
     required this.commandCount,
     required this.handle,
     required this.bridge,
+    required Listenable repaint,
     this.isDarkMode = false,
-  });
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -25,6 +33,9 @@ class ScorePainter extends CustomPainter {
     
     // Couleur principale (Lignes, Texte)
     final mainColor = isDarkMode ? Colors.white : Colors.black;
+
+    // Log synthétique sans boucle pour éviter le spam.
+    _logDiagnostics();
 
     if (commands == null || commandCount == 0 || handle == null) {
       return;
@@ -184,5 +195,38 @@ class ScorePainter extends CustomPainter {
            oldDelegate.commandCount != commandCount ||
            oldDelegate.isDarkMode != isDarkMode;
   }
-}
 
+  // Log les valeurs utiles uniquement si elles changent.
+  void _logDiagnostics() {
+    if (!kDebugMode) return;
+
+    final int commandCountValue = commandCount;
+    final int commandsAddress = commands == null ? 0 : commands!.address;
+    final int handleAddress = handle == null ? 0 : handle!.address;
+    final bool isNullPointer = commands != null && commands == ffi.nullptr;
+    int? firstType;
+
+    // On lit seulement la premiere commande, pas de boucle.
+    if (commands != null && commandCount > 0) {
+      firstType = commands!.ref.type;
+    }
+
+    final bool hasChanged = _lastLoggedCommandCount != commandCountValue ||
+        _lastLoggedCommandsAddress != commandsAddress ||
+        _lastLoggedHandleAddress != handleAddress ||
+        _lastLoggedFirstType != firstType;
+
+    if (!hasChanged) return;
+
+    _lastLoggedCommandCount = commandCountValue;
+    _lastLoggedCommandsAddress = commandsAddress;
+    _lastLoggedHandleAddress = handleAddress;
+    _lastLoggedFirstType = firstType;
+
+    debugPrint(
+      '[ScorePainter] count=$commandCountValue commands=0x${commandsAddress.toRadixString(16)} '
+      'handle=0x${handleAddress.toRadixString(16)} firstType=${firstType ?? -1} '
+      'isNullPtr=$isNullPointer',
+    );
+  }
+}

@@ -13,9 +13,10 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   // Liste simulée pour l'instant. À terme, tu pourras persister ça (SQLite/Hive)
   final List<Map<String, String>> _scores = [
-    {'title': 'Nocturne Op. 9 No. 2', 'path': 'assets/chopin_nocturne.xml', 'composer': 'Frédéric Chopin'},
-    {'title': 'Clair de Lune', 'path': 'assets/debussy_clair_de_lune.xml', 'composer': 'Claude Debussy'},
-    {'title': 'Gymnopédie No.1', 'path': 'assets/satie_gymnopedie.xml', 'composer': 'Erik Satie'},
+    {'title': 'test 1', 'path': 'assets/test1.xml', 'composer': 'Sam'},
+    {'title': 'test 2', 'path': 'assets/test2.xml', 'composer': 'Sam'},
+    {'title': 'test 3', 'path': 'assets/test3.xml', 'composer': 'Claude Debussy'},
+    {'title': 'test all', 'path': 'assets/test-all.xml', 'composer': 'Erik Satie'},
   ];
 
   Future<void> _importFile() async {

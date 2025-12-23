@@ -1,35 +1,32 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'piano_keyboard.dart';
 // On remplace le mock local par le package réel
 //import 'package:music_xml_engine/music_xml_engine.dart';
-import 'dart:ffi' as ffi;
-import 'package:ffi/ffi.dart';
 import 'score_painter.dart';
-import '../core/bridge.dart';
-
-import "../options/options.dart";
-
-
+import '../logic/score/score_controller.dart';
 
 class ScorePage extends StatefulWidget {
   final VoidCallback onClose;
+  final ScoreController controller;
   final String? filePath; // Le chemin du fichier à afficher
 
-  const ScorePage({super.key, required this.onClose, this.filePath});
+  const ScorePage({
+    super.key,
+    required this.onClose,
+    required this.controller,
+    this.filePath,
+  });
 
   @override
   State<ScorePage> createState() => _ScorePageState();
 }
 
 class _ScorePageState extends State<ScorePage> {
-  // FFI State
-  ffi.Pointer<MXMLHandle>? _handle;
-  ffi.Pointer<MXMLRenderCommandC>? _commands;
-  ffi.Pointer<ffi.Size>? _countPtr;
-  int _commandCount = 0;
-  final MXMLBridge _bridge = MXMLBridge();
+  // Controleur partage pour le rendu et la console.
+  ScoreController get _controller => widget.controller;
 
 
   bool _isKeyboardVisible = false;
@@ -41,8 +38,6 @@ class _ScorePageState extends State<ScorePage> {
   // Theme State
   bool _isDarkMode = false;
   double _canvasWidth = 0.0;
-  double _canvasHeight = 0.0;
-  double _contentHeight = 0.0;
 
 
   // Notre structure de données pour le MIDI : un Set de notes actives
@@ -58,11 +53,14 @@ class _ScorePageState extends State<ScorePage> {
   // Benchmarks
   int _reprocessCount = 0;
   double _lastProcessTimeMs = 0.0;
-  MXMLPipelineBench? _pipelineBench;
   //List<BenchLayer> _benchLayers = const [];
   
-  // Options
-  ffi.Pointer<MXMLOptions>? _options;
+  // Memoise les dernieres valeurs loggees pour eviter le spam.
+  static double? _lastLoggedCanvasWidth;
+  static double? _lastLoggedContentHeight;
+  static int? _lastLoggedCommandCount;
+  static int? _lastLoggedCommandsAddress;
+  static int? _lastLoggedHandleAddress;
 //   bool _optionsReady = false;
 //   final Map<String, bool> _boolValues = {};
 //   final Map<String, int> _intValues = {};
@@ -79,16 +77,12 @@ class _ScorePageState extends State<ScorePage> {
     super.initState();
 
     try {
-      MXMLBridge.initialize();
-      _handle = _bridge.create();
-      _countPtr = calloc<ffi.Size>();
-      // Initialise les options avec le preset standard.
-      //_options = _bridge.optionsCreate();
-      //_bridge.optionsApplyStandard(_options!);
-      //_bridge.setColorsDarkMode(_options!, _isDarkMode);
-      //_reloadOptionsFromBridge();
-      //_optionsReady = true;
-      _statusMessage = "Engine initialized";
+      // Informe si le controleur partage est pret.
+      if (_controller.ready) {
+        _statusMessage = "Engine initialized";
+      } else {
+        _statusMessage = "Engine initialization failed";
+      }
     } catch (e) {
       _statusMessage = "Error initializing engine: $e";
     }
@@ -109,6 +103,7 @@ class _ScorePageState extends State<ScorePage> {
   void _loadScore() {
     // Si aucun fichier n'est sélectionné, on peut charger un exemple ou rien du tout
     final path = widget.filePath ?? "dummy_content.xml";
+    _logLoadStep('start path=$path');
 
     setState(() {
       _isLoading = true;
@@ -117,7 +112,9 @@ class _ScorePageState extends State<ScorePage> {
 
     Future.delayed(const Duration(milliseconds: 50), () {
       //final path = _pathController.text;
-      final success = _bridge.loadFile(_handle!, path);
+      _logLoadStep('calling loadFile path=$path');
+      final success = _controller.loadFile(path);
+      _logLoadStep('loadFile done success=$success');
 
       if (mounted) {
         setState(() {
@@ -125,6 +122,7 @@ class _ScorePageState extends State<ScorePage> {
             _statusMessage = "Loaded: $path";
             //if (_lastLayoutWidth > 0) {
             if (_canvasWidth > 0) {
+               _logLoadStep('calling performLayout width=$_canvasWidth');
                _performLayout(_canvasWidth);
             }
           } else {
@@ -141,26 +139,67 @@ class _ScorePageState extends State<ScorePage> {
 
   void _performLayout(double width) {
     // Stoppe si le handle n'est pas pret ou largeur invalide.
-    if (_handle == null || width <= 0) return;
+    if (!_controller.ready || width <= 0) return;
     
     _canvasWidth = width;
+    _logLoadStep('performLayout start width=$_canvasWidth');
 
     final stopwatch = Stopwatch()..start();
-    // Utilise les options si elles sont disponibles.
-    //if (_options != null) {
-    //  _bridge.layoutWithOptions(_handle!, width, _options!);
-    //} else {
-      _bridge.layout(_handle!, width);
-    //}
+    // Utilise le controleur partage pour lancer le layout.
+    _controller.layout(width);
     stopwatch.stop();
     
-    _commands = _bridge.getRenderCommands(_handle!, _countPtr!);
-    _commandCount = _countPtr!.value;
-    _contentHeight = _bridge.getHeight(_handle!);
+    _logLayoutDiagnostics(force: true);
     
     _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
     _reprocessCount++;
     //_updatePipelineBench();
+  }
+
+  // Log des valeurs clefs apres layout (sans boucle).
+  void _logLayoutDiagnostics({bool force = false}) {
+    if (!kDebugMode) return;
+
+    final int commandsAddress = _controller.commands == null ? 0 : _controller.commands!.address;
+    final int handleAddress = _controller.handle == null ? 0 : _controller.handle!.address;
+    final bool hasChanged = _lastLoggedCanvasWidth != _canvasWidth ||
+        _lastLoggedContentHeight != _controller.contentHeight ||
+        _lastLoggedCommandCount != _controller.commandCount ||
+        _lastLoggedCommandsAddress != commandsAddress ||
+        _lastLoggedHandleAddress != handleAddress;
+
+    if (!hasChanged && !force) return;
+
+    _lastLoggedCanvasWidth = _canvasWidth;
+    _lastLoggedContentHeight = _controller.contentHeight;
+    _lastLoggedCommandCount = _controller.commandCount;
+    _lastLoggedCommandsAddress = commandsAddress;
+    _lastLoggedHandleAddress = handleAddress;
+
+    debugPrint(
+      '[ScorePage] layout width=$_canvasWidth height=${_controller.contentHeight} '
+      'count=${_controller.commandCount} commands=0x${commandsAddress.toRadixString(16)} '
+      'handle=0x${handleAddress.toRadixString(16)}',
+    );
+  }
+
+  // Log les etapes du chargement sans boucle.
+  void _logLoadStep(String message) {
+    if (!kDebugMode) return;
+    debugPrint('[ScorePage] load $message');
+  }
+
+  // Log des contraintes de rendu sans spam.
+  void _logPaintSize(double width, double height) {
+    if (!kDebugMode) return;
+
+    if (_lastLoggedCanvasWidth == width && _lastLoggedContentHeight == height) {
+      return;
+    }
+
+    _lastLoggedCanvasWidth = width;
+    _lastLoggedContentHeight = height;
+    debugPrint('[ScorePage] paintSize width=$width height=$height');
   }
   
   @override
@@ -254,19 +293,30 @@ class _ScorePageState extends State<ScorePage> {
                           }
                           
                           return Container(
-                            color: Colors.black12,
+                            color: Colors.white,
                             padding: const EdgeInsets.all(20.0),
-                            child: SingleChildScrollView(
-                              child: CustomPaint(
-                                painter: ScorePainter(
-                                  commands: _commands,
-                                  commandCount: _commandCount,
-                                  handle: _handle,
-                                  bridge: _bridge,
-                                  isDarkMode: _isDarkMode,
-                                ),
-                                size: Size(width, _contentHeight),
-                              ),
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _controller.renderVersion,
+                              builder: (context, _, __) {
+                                // Met a jour la taille du canvas quand le buffer change.
+                                final contentHeight = _controller.contentHeight;
+                                final parentHeight = scoreConstraints.maxHeight;
+                                final paintHeight = contentHeight > 0 ? contentHeight : parentHeight;
+                                _logPaintSize(width, paintHeight);
+                                return SingleChildScrollView(
+                                  child: CustomPaint(
+                                    painter: ScorePainter(
+                                      commands: _controller.commands,
+                                      commandCount: _controller.commandCount,
+                                      handle: _controller.handle,
+                                      bridge: _controller.bridge,
+                                      repaint: _controller.renderVersion,
+                                      isDarkMode: _isDarkMode,
+                                    ),
+                                    size: Size(width, paintHeight),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
