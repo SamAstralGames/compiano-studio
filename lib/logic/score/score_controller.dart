@@ -27,6 +27,7 @@ class ScoreController {
   int _commandCount = 0;
   double _contentHeight = 0.0;
   double _lastLayoutWidth = 0.0;
+  double _availableWidth = 0.0;
 
   ScoreController() {
     // Initialise le bridge et les objets FFI au demarrage.
@@ -63,6 +64,9 @@ class ScoreController {
   // Derniere largeur de layout utilisee.
   double get lastLayoutWidth => _lastLayoutWidth;
 
+  // Largeur disponible actuelle (mise a jour par l'UI).
+  double get availableWidth => _availableWidth;
+
   // Initialise le bridge et les ressources FFI.
   void _initializeBridge() {
     try {
@@ -88,18 +92,26 @@ class ScoreController {
     return ok;
   }
 
-  // Lance le layout et rafraichit le front buffer.
-  void layout(double width, {bool useOptions = true}) {
-    // Stoppe si le handle n'est pas pret ou largeur invalide.
-    if (_handle == null || width <= 0) return;
+  // Met a jour la taille disponible pour le rendu (appele par l'UI).
+  void updateCanvasSize(double width) {
+    _availableWidth = width;
+  }
 
-    _lastLayoutWidth = width;
+  // Lance le layout et rafraichit le front buffer.
+  // Si width n'est pas fourni, utilise la derniere taille connue (_availableWidth).
+  void layout({double? width, bool useOptions = true}) {
+    final targetWidth = width ?? _availableWidth;
+
+    // Stoppe si le handle n'est pas pret ou largeur invalide.
+    if (_handle == null || targetWidth <= 0) return;
+
+    _lastLayoutWidth = targetWidth;
 
     // Applique le layout avec options si possible.
     if (useOptions && _options != null) {
-      _bridge.layoutWithOptions(_handle!, width, _options!);
+      _bridge.layoutWithOptions(_handle!, targetWidth, _options!);
     } else {
-      _bridge.layout(_handle!, width);
+      _bridge.layout(_handle!, targetWidth);
     }
 
     // Conversion immediate C++ -> Dart (Model)
@@ -113,6 +125,16 @@ class ScoreController {
     } finally {
       // Libere le pointeur temporaire.
       calloc.free(countPtr);
+    }
+
+    // Log centralise : s'affiche que le layout vienne de l'UI ou de la Console.
+    if (kDebugMode) {
+      debugPrint(
+        '[ScoreController] layout width=${targetWidth.toStringAsFixed(1)} '
+        'height=${_contentHeight.toStringAsFixed(1)} '
+        'count=$_commandCount '
+        'handle=0x${_handle!.address.toRadixString(16)}'
+      );
     }
 
     // Notifie les observers qu'un nouveau buffer est disponible.

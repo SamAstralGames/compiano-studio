@@ -69,9 +69,6 @@ class _ScorePageState extends State<ScorePage> {
   // Memoise les dernieres valeurs loggees pour eviter le spam.
   static double? _lastLoggedCanvasWidth;
   static double? _lastLoggedContentHeight;
-  static int? _lastLoggedCommandCount;
-  static int? _lastLoggedCommandsAddress;
-  static int? _lastLoggedHandleAddress;
 //   bool _optionsReady = false;
 //   final Map<String, bool> _boolValues = {};
 //   final Map<String, int> _intValues = {};
@@ -164,38 +161,12 @@ class _ScorePageState extends State<ScorePage> {
 
     final stopwatch = Stopwatch()..start();
     // Utilise le controleur partage pour lancer le layout.
-    _controller.layout(width);
+    _controller.layout(width: width);
     stopwatch.stop();
-    
-    _logLayoutDiagnostics(force: true);
     
     _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
     _reprocessCount++;
     //_updatePipelineBench();
-  }
-
-  // Log des valeurs clefs apres layout (sans boucle).
-  void _logLayoutDiagnostics({bool force = false}) {
-    if (!kDebugMode) return;
-
-    final int handleAddress = _controller.handle == null ? 0 : _controller.handle!.address;
-    final bool hasChanged = _lastLoggedCanvasWidth != _canvasWidth ||
-        _lastLoggedContentHeight != _controller.contentHeight ||
-        _lastLoggedCommandCount != _controller.commandCount ||
-        _lastLoggedHandleAddress != handleAddress;
-
-    if (!hasChanged && !force) return;
-
-    _lastLoggedCanvasWidth = _canvasWidth;
-    _lastLoggedContentHeight = _controller.contentHeight;
-    _lastLoggedCommandCount = _controller.commandCount;
-    _lastLoggedHandleAddress = handleAddress;
-
-    debugPrint(
-      '[ScorePage] layout width=$_canvasWidth height=${_controller.contentHeight} '
-      'count=${_controller.commandCount} '
-      'handle=0x${handleAddress.toRadixString(16)}',
-    );
   }
 
   // Log les etapes du chargement sans boucle.
@@ -338,6 +309,9 @@ class _ScorePageState extends State<ScorePage> {
                         // Calcul de la largeur disponible (moins le padding horizontal de 40)
                         final double width = scoreConstraints.maxWidth - 40.0;
                         
+                        // On informe le controller de la taille disponible en permanence.
+                        _controller.updateCanvasSize(width);
+
                         // Si la largeur change, on recalcule le layout via FFI
                         if (width > 0 && (width - _canvasWidth).abs() > 1.0) {
                           print ( "Redimensionnement width : $width height : scoreConstraints.maxHeight : ${scoreConstraints.maxHeight} " ); 
@@ -346,7 +320,7 @@ class _ScorePageState extends State<ScorePage> {
                         }
                         else
                         {
-                          print ( "_canvasWidth : $width height : scoreConstraints.maxHeight : ${scoreConstraints.maxHeight} " ); 
+                          // print ( "_canvasWidth : $width height : scoreConstraints.maxHeight : ${scoreConstraints.maxHeight} " ); 
                           _canvasWidth = width;
                         }
                         
@@ -655,7 +629,7 @@ class _ScorePageState extends State<ScorePage> {
                     title: "FrontBuffer",
                     padding: EdgeInsets.zero,
                     lineSpacing: 4.0,
-                    onWidthChanged: _playController.updateLayoutWidth,
+                    // onWidthChanged: _playController.updateLayoutWidth,
                   );
                 },
               ),

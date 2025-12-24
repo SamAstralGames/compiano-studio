@@ -30,7 +30,6 @@ class PlayController {
   final ValueNotifier<String> statusMessage = ValueNotifier<String>("Initializing...");
 
   bool _ready = false;
-  double _lastLayoutWidth = 0.0;
   int _nextRequestId = 0;
 
   // Acces rapide au bridge FFI.
@@ -68,15 +67,6 @@ class PlayController {
     // On incremente l'id pour forcer la notification meme si le path est identique.
     _nextRequestId += 1;
     playRequests.value = PlayRequest(path: path, requestId: _nextRequestId);
-  }
-
-  // Met a jour la largeur de layout pour les commandes.
-  void updateLayoutWidth(double width) {
-    // Ignore les largeurs invalides.
-    if (width <= 0) {
-      return;
-    }
-    _lastLayoutWidth = width;
   }
 
   // Execute une commande console et publie les sorties.
@@ -226,7 +216,7 @@ class PlayController {
       return;
     }
     final ok = _scoreController.loadFile(path);
-    _appendOutput("Loaded: $path ok=${ok ? 1 : 0}");
+    _appendOutput("Loaded: $path ok=${ok ? 1 : 0} handle=${_formatHandle()}");
   }
 
   // Traite la commande set.
@@ -372,8 +362,8 @@ class PlayController {
   void _handleState() {
     final path = _scoreController.loadedPath ?? "";
     final loaded = _scoreController.loadedOk ? "1" : "0";
-    _appendOutput("Loaded: $path ok=$loaded");
-    _appendOutput("LayoutWidth: ${_lastLayoutWidth.toStringAsFixed(2)}");
+    _appendOutput("Loaded: $path ok=$loaded handle=${_formatHandle()}");
+    _appendOutput("LayoutWidth: ${_scoreController.availableWidth.toStringAsFixed(2)}");
   }
 
   // Traite la commande process.
@@ -392,13 +382,13 @@ class PlayController {
       return;
     }
     // Verifie la largeur de layout.
-    if (_lastLayoutWidth <= 0) {
+    if (_scoreController.availableWidth <= 0) {
       _appendOutput("Invalid layout width. Resize the window and retry.");
       return;
     }
-    _scoreController.layout(_lastLayoutWidth, useOptions: true);
+    _scoreController.layout(useOptions: true);
     final count = _refreshFrontBuffer();
-    _appendOutput("Processed: ok=1 commands=$count");
+    _appendOutput("Processed: ok=1 commands=$count handle=${_formatHandle()}");
   }
 
   // Traite la commande getPipelineBench.
@@ -423,7 +413,8 @@ class PlayController {
       "${bench.layoutTotalMs} "
       "${bench.renderCommandsMs} "
       "${bench.exportSerializeSvgMs} "
-      "${bench.pipelineTotalMs}",
+      "${bench.pipelineTotalMs} "
+      "handle=${_formatHandle()}",
     );
   }
 
@@ -441,7 +432,7 @@ class PlayController {
     }
     final path = tokens.sublist(1).join(" ");
     final ok = _bridge.writeSvgToFile(_handle!, path);
-    _appendOutput("WroteSVG: $path ok=${ok ? 1 : 0}");
+    _appendOutput("WroteSVG: $path ok=${ok ? 1 : 0} handle=${_formatHandle()}");
   }
 
   // Traite la commande getRenderCommandCount.
@@ -452,7 +443,7 @@ class PlayController {
       return;
     }
     final count = _getRenderCommandCountInternal();
-    _appendOutput("RenderCommands: $count");
+    _appendOutput("RenderCommands: $count handle=${_formatHandle()}");
   }
 
   // Rafraichit les lignes du front buffer.
@@ -467,7 +458,7 @@ class PlayController {
     calloc.free(countPtr);
     final lines = <String>[];
     // Header de contexte.
-    lines.add("FrontBuffer: $count commands");
+    lines.add("FrontBuffer: $count commands handle=${_formatHandle()}");
     // Itere et formate chaque commande.
     for (var i = 0; i < count; i++) {
       final cmd = commandsPtr.elementAt(i).ref;
@@ -603,6 +594,11 @@ class PlayController {
   // Formate un rectangle en tuple court.
   String _formatRect(MXMLRectC rect) {
     return "(${rect.x}, ${rect.y}, ${rect.width}, ${rect.height})";
+  }
+
+  // Formate l'adresse du handle pour le debug.
+  String _formatHandle() {
+    return _handle == null ? "null" : "0x${_handle!.address.toRadixString(16)}";
   }
 
   // Formate un codepoint en hex.

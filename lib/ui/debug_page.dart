@@ -81,7 +81,7 @@ class _DebugPageState extends State<DebugPage> {
                   title: "FrontBuffer",
                   padding: const EdgeInsets.all(_pagePadding),
                   lineSpacing: _outputLineSpacing,
-                  onWidthChanged: _playController.updateLayoutWidth,
+                  // onWidthChanged: _playController.updateLayoutWidth, // Desactive pour eviter de corrompre la taille du canvas principal
                 );
               },
             ),
