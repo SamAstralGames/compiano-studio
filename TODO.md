@@ -98,6 +98,7 @@ Ce document trace la route pour le développement de **Compiano Studio**, une ap
 ### 4.4. Feature : Catalogue Certifié (Walled Garden)
 - [x] **Structure de Données** : Définir le format JSON pour les métadonnées pédagogiques (Tags Cortot, Doigtés validés).
 - [x] **Catalog Service** : Service Dart pour lister les morceaux certifiés et filtrer par difficulté.
+- [ ] **Smart Overlay** : Système d'injection de doigtés sur fichiers tiers via reconnaissance d'empreinte musicale. Cible initiale : **Top 50 Répertoire Standard**.
 - [ ] **Restriction IA** : Désactiver les features d'analyse avancée pour les fichiers importés (Mode "Lecteur Seul").
 
 ---

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import '../logic/play/play_controller.dart';
 
 class LibraryPage extends StatefulWidget {
-  final Function(String) onScoreSelected;
+  final PlayController playController;
 
-  const LibraryPage({super.key, required this.onScoreSelected});
+  const LibraryPage({super.key, required this.playController});
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
@@ -67,7 +68,7 @@ class _LibraryPageState extends State<LibraryPage> {
               title: Text(score['title']!, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(score['composer']!),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => widget.onScoreSelected(score['path']!),
+              onTap: () => widget.playController.requestPlay(score['path']!),
             ),
           );
         },

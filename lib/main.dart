@@ -4,32 +4,84 @@ import 'ui/score_page.dart';
 import 'ui/library_page.dart';
 import 'ui/debug_page.dart';
 import 'ui/settings/settings_page.dart';
+import 'ui/theme/app_theme.dart';
+import 'ui/theme/theme_controller.dart';
 import 'logic/score/score_controller.dart';
+import 'logic/play/play_controller.dart';
 
 
 void main() {
   runApp(const PianoApp());
 }
 
-class PianoApp extends StatelessWidget {
+class PianoApp extends StatefulWidget {
   const PianoApp({super.key});
 
   @override
+  State<PianoApp> createState() => _PianoAppState();
+}
+
+class _PianoAppState extends State<PianoApp> {
+  final ThemeController _themeController = ThemeController();
+
+  @override
+  void dispose() {
+    _themeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Piano App',
-      debugShowCheckedModeBanner: false, // Enlève le bandeau "DEBUG"
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MainShell(),
+    return ValueListenableBuilder<AppThemeSelection>(
+      valueListenable: _themeController.selection,
+      builder: (context, selection, _) {
+        final themeMode = _resolveThemeMode(selection);
+        final themeData = _resolveThemeData(selection);
+        return MaterialApp(
+          title: 'Piano App',
+          debugShowCheckedModeBanner: false, // Enlève le bandeau "DEBUG"
+          theme: themeData,
+          darkTheme: AppTheme.dark(),
+          themeMode: themeMode,
+          home: MainShell(themeController: _themeController),
+        );
+      },
     );
+  }
+
+  // Resout le ThemeMode a partir de la selection.
+  ThemeMode _resolveThemeMode(AppThemeSelection selection) {
+    switch (selection) {
+      case AppThemeSelection.system:
+        return ThemeMode.system;
+      case AppThemeSelection.light:
+        return ThemeMode.light;
+      case AppThemeSelection.dark:
+        return ThemeMode.dark;
+      case AppThemeSelection.custom:
+        return ThemeMode.light;
+    }
+  }
+
+  // Resout le ThemeData a partir de la selection.
+  ThemeData _resolveThemeData(AppThemeSelection selection) {
+    switch (selection) {
+      case AppThemeSelection.system:
+        return AppTheme.light();
+      case AppThemeSelection.light:
+        return AppTheme.light();
+      case AppThemeSelection.dark:
+        return AppTheme.dark();
+      case AppThemeSelection.custom:
+        return AppTheme.custom();
+    }
   }
 }
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final ThemeController themeController;
+
+  const MainShell({super.key, required this.themeController});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -44,18 +96,24 @@ class _MainShellState extends State<MainShell> {
   Timer? _animationTimer;
   String? _currentScorePath; // Le fichier actuellement ouvert
   late final ScoreController _scoreController;
+  late final PlayController _playController;
 
   @override
   void initState() {
     super.initState();
     // Controleur partage pour la partition et la console debug.
     _scoreController = ScoreController();
+    // Controleur de lecture qui pilote l'ouverture des morceaux.
+    _playController = PlayController(scoreController: _scoreController);
+    _playController.playRequests.addListener(_handlePlayRequest);
   }
 
   @override
   void dispose() {
     // Libere les ressources FFI au moment de quitter l'app.
     _scoreController.dispose();
+    _playController.playRequests.removeListener(_handlePlayRequest);
+    _playController.dispose();
     super.dispose();
   }
 
@@ -81,9 +139,9 @@ class _MainShellState extends State<MainShell> {
     final List<Widget> pages = [
       PlaceholderPage(title: 'Home (Dashboard)', color: Colors.red, onOpenScore: _toggleScore),
       PlaceholderPage(title: 'Exercices (Cursus)', color: Colors.orange, onOpenScore: _toggleScore),
-      LibraryPage(onScoreSelected: _openScore), // On remplace le placeholder par la vraie bibliothèque
-      SettingsPage(), //const PlaceholderPage(title: 'Settings', color: Colors.blue),
-      DebugPage(controller: _scoreController),
+      LibraryPage(playController: _playController), // On remplace le placeholder par la vraie bibliothèque
+      SettingsPage(themeController: widget.themeController), //const PlaceholderPage(title: 'Settings', color: Colors.blue),
+      DebugPage(playController: _playController),
       //const PlaceholderPage(title: 'Debug', color: Colors.grey),
     ];
 
@@ -105,6 +163,7 @@ class _MainShellState extends State<MainShell> {
             Positioned.fill(
               child: ScorePage(
                 controller: _scoreController,
+                playController: _playController,
                 onClose: _toggleScore,
                 filePath: _currentScorePath, // On passe le fichier sélectionné
               ),
@@ -266,6 +325,14 @@ class _MainShellState extends State<MainShell> {
         setState(() => _animationDuration = Duration.zero);
       }
     });
+  }
+
+  // Reagit aux demandes de lecture du PlayController.
+  void _handlePlayRequest() {
+    final request = _playController.playRequests.value;
+    // On ignore l'evenement si la requete est absente.
+    if (request == null) return;
+    _openScore(request.path);
   }
 }
 

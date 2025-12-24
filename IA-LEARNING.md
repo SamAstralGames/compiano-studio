@@ -133,3 +133,19 @@ Pour garantir une fiabilité pédagogique absolue, les fonctionnalités d'appren
 1.  **Qualité des Données** : L'analyse biomécanique (Cortot) nécessite des doigtés parfaits. Les XMLs d'internet (MuseScore, IMSLP) en sont souvent dépourvus.
 2.  **Responsabilité** : Donner un mauvais conseil technique (ex: mauvais doigté sur une extension) peut causer des blessures (tendinites). Nous ne prenons ce risque que sur des partitions contrôlées.
 3.  **Modèle Économique** : Le "Coach IA" devient la valeur ajoutée premium associée au catalogue, tandis que le "Lecteur" reste un outil utilitaire gratuit.
+
+## 6.3. Le "Smart Overlay" (Doigtés Déportés pour la Pop)
+
+Pour le répertoire sous copyright (Pop, Jazz, Cinéma), nous adoptons une stratégie de **séparation des données** :
+
+1.  **L'Utilisateur** apporte le contenu (Fichier XML importé).
+2.  **Compiano** fournit la couche technique (Doigtés + Tags Cortot).
+
+**Mécanisme** :
+- À l'import, le logiciel calcule une **Empreinte Musicale** (Hash de la séquence mélodique/rythmique).
+- Si l'empreinte correspond à un morceau de notre base "Overlay", le logiciel propose : *"Nous avons des doigtés certifiés pour ce morceau. Les appliquer ?"*
+- **Résultat** : Un fichier importé "sale" devient instantanément compatible avec l'Analyse Cortot Premium.
+
+**Faisabilité (Loi de Pareto)** :
+- Le répertoire pianistique "Grand Public" est très concentré (quelques dizaines de "Hits" : *Amélie Poulain*, *River Flows in You*, *Lettre à Élise*...).
+- En ciblant manuellement les **50 à 100 morceaux les plus joués**, nous couvrons la majorité des besoins amateurs avec une qualité "Certifiée", sans avoir à gérer une base de données infinie.

@@ -4,6 +4,8 @@
 
 Plus qu'un simple lecteur, c'est une **Académie de Piano Virtuelle** qui combine la précision mathématique du C++ avec l'intelligence pédagogique de l'IA pour offrir un coaching de niveau conservatoire, basé sur les principes d'Alfred Cortot.
 
+la plateforme d'apprentissage ne repose pas sur le contenu (les morceaux), mais sur la capacité de la plateforme à collecter, analyser et activer les données physiologiques pour offrir un parcours de remédiation personnalisé et éthique.
+
 ---
 
 ## ✨ Fonctionnalités & Modèle

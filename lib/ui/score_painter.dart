@@ -1,26 +1,17 @@
-import 'dart:ffi' as ffi;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../core/bridge.dart';
+import '../logic/models/render_commands.dart';
 
 class ScorePainter extends CustomPainter {
   // Memoise les dernieres infos loggees pour eviter le spam.
   static int? _lastLoggedCommandCount;
-  static int? _lastLoggedCommandsAddress;
-  static int? _lastLoggedHandleAddress;
-  static int? _lastLoggedFirstType;
 
-  final ffi.Pointer<MXMLRenderCommandC>? commands;
-  final int commandCount;
-  final ffi.Pointer<MXMLHandle>? handle; // Pour récupérer les strings
-  final MXMLBridge bridge;
+  // Plus de pointeurs ici ! Seulement des objets Dart.
+  final List<RenderCommand> commands;
   final bool isDarkMode;
 
   ScorePainter({
     required this.commands,
-    required this.commandCount,
-    required this.handle,
-    required this.bridge,
     required Listenable repaint,
     this.isDarkMode = false,
   }) : super(repaint: repaint);
@@ -37,53 +28,46 @@ class ScorePainter extends CustomPainter {
     // Log synthétique sans boucle pour éviter le spam.
     _logDiagnostics();
 
-    if (commands == null || commandCount == 0 || handle == null) {
+    if (commands.isEmpty) {
       return;
     }
 
     // Itération sur les commandes
-    for (int i = 0; i < commandCount; i++) {
-      final cmd = commands!.elementAt(i).ref;
-
-      switch (cmd.type) {
-        case MXMLRenderCommandTypeC.MXML_LINE:
-          _drawLine(canvas, cmd.data.line, mainColor);
+    for (final cmd in commands) {
+      switch (cmd) {
+        case RenderLine():
+          _drawLine(canvas, cmd, mainColor);
           break;
-        case MXMLRenderCommandTypeC.MXML_GLYPH:
-          _drawGlyph(canvas, cmd.data.glyph, mainColor);
+        case RenderGlyph():
+          _drawGlyph(canvas, cmd, mainColor);
           break;
-        case MXMLRenderCommandTypeC.MXML_TEXT:
-          _drawText(canvas, cmd.data.text, mainColor);
+        case RenderText():
+          _drawText(canvas, cmd, mainColor);
           break;
-        case MXMLRenderCommandTypeC.MXML_DEBUG_RECT:
-          _drawDebugRect(canvas, cmd.data.debugRect);
+        case RenderDebugRect():
+          _drawDebugRect(canvas, cmd);
           break;
       }
     }
   }
 
-  void _drawLine(Canvas canvas, MXMLLineDataC line, Color color) {
+  void _drawLine(Canvas canvas, RenderLine line, Color color) {
     final paint = Paint()
       ..color = color
       ..strokeWidth = line.thickness
       ..style = PaintingStyle.stroke;
 
-    canvas.drawLine(
-      Offset(line.p1.x, line.p1.y),
-      Offset(line.p2.x, line.p2.y),
-      paint,
-    );
+    canvas.drawLine(line.p1, line.p2, paint);
   }
 
-  void _drawGlyph(Canvas canvas, MXMLGlyphDataC glyphCmd, Color color) {
-    final codepoint = bridge.getGlyphCodepoint(handle!, glyphCmd.id);
-    if (codepoint == 0) {
+  void _drawGlyph(Canvas canvas, RenderGlyph glyphCmd, Color color) {
+    if (glyphCmd.codepoint == 0) {
       // Fallback debug
-      canvas.drawCircle(Offset(glyphCmd.pos.x, glyphCmd.pos.y), 2.0, Paint()..color = Colors.red);
+      canvas.drawCircle(glyphCmd.pos, 2.0, Paint()..color = Colors.red);
       return;
     }
 
-    final char = String.fromCharCode(codepoint);
+    final char = String.fromCharCode(glyphCmd.codepoint);
     
     // Le scale est souvent utilisé pour la taille en pixels. 
     // SMuFL Bravura : 1 staff space = 1/4 em. 
@@ -116,7 +100,7 @@ class ScorePainter extends CustomPainter {
     // Cela signifie que l'origine SVG est en bas (ou haut inversé).
     
     canvas.save();
-    canvas.translate(glyphCmd.pos.x, glyphCmd.pos.y);
+    canvas.translate(glyphCmd.pos.dx, glyphCmd.pos.dy);
     
     // Si scale est négatif, le moteur demande un flip Y.
     // En Flutter, Y est vers le bas.
@@ -143,21 +127,17 @@ class ScorePainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawText(Canvas canvas, MXMLTextDataC textCmd, Color color) {
-    final text = bridge.getString(handle!, textCmd.textId);
-    if (text.isEmpty) return;
+  void _drawText(Canvas canvas, RenderText textCmd, Color color) {
+    if (textCmd.text.isEmpty) return;
 
     final textStyle = TextStyle(
       color: color,
       fontSize: textCmd.fontSize,
-      fontStyle: textCmd.italic == 1 ? FontStyle.italic : FontStyle.normal,
+      fontStyle: textCmd.isItalic ? FontStyle.italic : FontStyle.normal,
       fontFamily: 'Serif', // Fallback
     );
 
-    final textSpan = TextSpan(
-      text: text,
-      style: textStyle,
-    );
+    final textSpan = TextSpan(text: textCmd.text, style: textStyle);
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
@@ -167,22 +147,19 @@ class ScorePainter extends CustomPainter {
     // mXML position is usually baseline or top-left depending on element.
     // Assuming baseline for text here, but might need adjustment.
     // Let's draw at position for now.
-    textPainter.paint(canvas, Offset(textCmd.pos.x, textCmd.pos.y - textCmd.fontSize)); 
+    textPainter.paint(canvas, Offset(textCmd.pos.dx, textCmd.pos.dy - textCmd.fontSize)); 
   }
 
-  void _drawDebugRect(Canvas canvas, MXMLDebugRectDataC rectCmd) {
-    final rect = Rect.fromLTWH(
-        rectCmd.rect.x, rectCmd.rect.y, rectCmd.rect.width, rectCmd.rect.height);
-    
+  void _drawDebugRect(Canvas canvas, RenderDebugRect rectCmd) {
     // Fill
-    if (rectCmd.fillId != 0) { // 0 = null/transparent assumption for ID? Or verify
+    if (rectCmd.hasFill) { 
        // Simuler couleur debug semi-transparente bleue
-       canvas.drawRect(rect, Paint()..color = Colors.blue.withOpacity(0.1));
+       canvas.drawRect(rectCmd.rect, Paint()..color = Colors.blue.withOpacity(0.1));
     }
 
     // Stroke
     if (rectCmd.strokeWidth > 0) {
-       canvas.drawRect(rect, Paint()
+       canvas.drawRect(rectCmd.rect, Paint()
          ..color = Colors.blue
          ..style = PaintingStyle.stroke
          ..strokeWidth = rectCmd.strokeWidth);
@@ -191,42 +168,21 @@ class ScorePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ScorePainter oldDelegate) {
-    return oldDelegate.commands != commands || 
-           oldDelegate.commandCount != commandCount ||
+    // Comparaison simple de référence de liste (la liste est recréée à chaque layout)
+    return oldDelegate.commands != commands ||
            oldDelegate.isDarkMode != isDarkMode;
   }
 
   // Log les valeurs utiles uniquement si elles changent.
   void _logDiagnostics() {
     if (!kDebugMode) return;
-
-    final int commandCountValue = commandCount;
-    final int commandsAddress = commands == null ? 0 : commands!.address;
-    final int handleAddress = handle == null ? 0 : handle!.address;
-    final bool isNullPointer = commands != null && commands == ffi.nullptr;
-    int? firstType;
-
-    // On lit seulement la premiere commande, pas de boucle.
-    if (commands != null && commandCount > 0) {
-      firstType = commands!.ref.type;
-    }
-
-    final bool hasChanged = _lastLoggedCommandCount != commandCountValue ||
-        _lastLoggedCommandsAddress != commandsAddress ||
-        _lastLoggedHandleAddress != handleAddress ||
-        _lastLoggedFirstType != firstType;
+    
+    final int commandCountValue = commands.length;
+    final bool hasChanged = _lastLoggedCommandCount != commandCountValue;
 
     if (!hasChanged) return;
 
     _lastLoggedCommandCount = commandCountValue;
-    _lastLoggedCommandsAddress = commandsAddress;
-    _lastLoggedHandleAddress = handleAddress;
-    _lastLoggedFirstType = firstType;
-
-    debugPrint(
-      '[ScorePainter] count=$commandCountValue commands=0x${commandsAddress.toRadixString(16)} '
-      'handle=0x${handleAddress.toRadixString(16)} firstType=${firstType ?? -1} '
-      'isNullPtr=$isNullPointer',
-    );
+    debugPrint('[ScorePainter] count=$commandCountValue');
   }
 }

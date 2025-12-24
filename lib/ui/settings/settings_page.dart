@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import '../../core/bridge.dart';
 import '../../options/definitions/options_catalog.dart';
 import '../../options/options.dart';
+import '../theme/theme_controller.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final ThemeController themeController;
+
+  const SettingsPage({super.key, required this.themeController});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -34,6 +37,9 @@ class _SettingsPageState extends State<SettingsPage> {
   final Map<String, String> _previousTextValues = {};
 
   late final List<OptionSection> _optionSections = buildOptionSections(_bridge);
+
+  // Acces rapide au controleur de theme.
+  ThemeController get _themeController => widget.themeController;
 
   @override
   void initState() {
@@ -68,16 +74,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Handle empty sections safely.
-    if (_optionSections.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Settings")),
-        body: const Center(child: Text("No options available.")),
-      );
-    }
-    final tabs = _optionSections
-        .map((section) => Tab(text: section.name))
-        .toList(growable: false);
+    final tabs = [
+      const Tab(text: "Preferences"),
+      ..._optionSections.map((section) => Tab(text: section.name)),
+    ];
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
@@ -89,12 +89,64 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         body: TabBarView(
-          children: _optionSections
-              .map((section) => _buildSectionView(section))
-              .toList(growable: false),
+          children: [
+            _buildPreferencesView(),
+            ..._optionSections.map((section) => _buildSectionView(section)),
+          ],
         ),
       ),
     );
+  }
+
+  // Build the preferences view with theme selection.
+  Widget _buildPreferencesView() {
+    return ListView(
+      padding: const EdgeInsets.all(_pagePadding),
+      children: [
+        Text("Theme", style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: _itemSpacing),
+        ValueListenableBuilder<AppThemeSelection>(
+          valueListenable: _themeController.selection,
+          builder: (context, selection, _) {
+            return Column(
+              children: [
+                RadioListTile<AppThemeSelection>(
+                  title: const Text("System"),
+                  value: AppThemeSelection.system,
+                  groupValue: selection,
+                  onChanged: _updateThemeMode,
+                ),
+                RadioListTile<AppThemeSelection>(
+                  title: const Text("Light"),
+                  value: AppThemeSelection.light,
+                  groupValue: selection,
+                  onChanged: _updateThemeMode,
+                ),
+                RadioListTile<AppThemeSelection>(
+                  title: const Text("Dark"),
+                  value: AppThemeSelection.dark,
+                  groupValue: selection,
+                  onChanged: _updateThemeMode,
+                ),
+                RadioListTile<AppThemeSelection>(
+                  title: const Text("Custom"),
+                  value: AppThemeSelection.custom,
+                  groupValue: selection,
+                  onChanged: _updateThemeMode,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Met a jour le theme depuis la selection UI.
+  void _updateThemeMode(AppThemeSelection? selection) {
+    // Ignore les valeurs nulles.
+    if (selection == null) return;
+    _themeController.setSelection(selection);
   }
 
   // Build a single section view for the tabs.
