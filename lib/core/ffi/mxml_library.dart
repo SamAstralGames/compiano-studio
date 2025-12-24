@@ -24,6 +24,7 @@ class MxmlLibrary {
   final MxmlOptionsApplyCompact optionsApplyCompact;
   final MxmlOptionsApplyPrint optionsApplyPrint;
   final MxmlLayoutWithOptions layoutWithOptions;
+  final MxmlSetViewport setViewport;
   final OptionsSetBool setRenderingDrawTitle;
   final OptionsGetBool getRenderingDrawTitle;
   final OptionsSetBool setRenderingDrawPartNames;
@@ -297,6 +298,7 @@ class MxmlLibrary {
     required this.optionsApplyCompact,
     required this.optionsApplyPrint,
     required this.layoutWithOptions,
+    required this.setViewport,
     required this.setRenderingDrawTitle,
     required this.getRenderingDrawTitle,
     required this.setRenderingDrawPartNames,
@@ -606,6 +608,8 @@ class MxmlLibrary {
           dylib.lookupFunction<mxml_layout_with_options_func, MxmlLayoutWithOptions>(
         'mxml_layout_with_options',
       ),
+      // setViewport: dylib.lookupFunction<mxml_set_viewport_func, MxmlSetViewport>('mxml_set_viewport'),
+      setViewport: (handle, y, height) {}, // Stub temporaire pour eviter le crash d'init
       setRenderingDrawTitle:
           dylib.lookupFunction<mxml_options_set_rendering_draw_title_func, OptionsSetBool>(
         'mxml_options_set_rendering_draw_title',

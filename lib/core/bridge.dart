@@ -30,6 +30,7 @@ class MXMLBridge {
   static late final MxmlOptionsApplyCompact _optionsApplyCompact;
   static late final MxmlOptionsApplyPrint _optionsApplyPrint;
   static late final MxmlLayoutWithOptions _layoutWithOptions;
+  static late final MxmlSetViewport _setViewport;
   static late final OptionsSetBool _setRenderingDrawTitle;
   static late final OptionsGetBool _getRenderingDrawTitle;
   static late final OptionsSetBool _setRenderingDrawPartNames;
@@ -308,6 +309,7 @@ class MXMLBridge {
     _optionsApplyCompact = _library.optionsApplyCompact;
     _optionsApplyPrint = _library.optionsApplyPrint;
     _layoutWithOptions = _library.layoutWithOptions;
+    _setViewport = _library.setViewport;
     _setRenderingDrawTitle = _library.setRenderingDrawTitle;
     _getRenderingDrawTitle = _library.getRenderingDrawTitle;
     _setRenderingDrawPartNames = _library.setRenderingDrawPartNames;
@@ -1947,6 +1949,17 @@ class MXMLBridge {
   // Definit sheet_maximum_width.
   void setSheetMaximumWidth(Pointer<MXMLOptions> opts, double value) {
     _setSheetMaximumWidth(opts, value);
+  }
+
+  // --- Spatial Indexing (Chunking C++) ---
+
+  // Indique si le moteur C++ supporte le filtrage spatial natif.
+  // TODO: Passer a true (ou detecter via dylib) quand mxml_set_viewport sera implemente.
+  bool get supportsSpatialIndexing => false;
+
+  // Definit la fenetre visible pour le rendu (Culling cote C++).
+  void setViewport(Pointer<MXMLHandle> handle, double y, double height) {
+    _setViewport(handle, y, height);
   }
 
   // --- Helpers pour strings ---

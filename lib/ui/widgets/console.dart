@@ -12,6 +12,7 @@ class ConsoleWidget extends StatelessWidget {
   final double lineSpacing;
   final double inputSpacing;
   final String hintText;
+  final TextStyle? textStyle;
 
   const ConsoleWidget({
     super.key,
@@ -25,6 +26,7 @@ class ConsoleWidget extends StatelessWidget {
     required this.lineSpacing,
     required this.inputSpacing,
     required this.hintText,
+    this.textStyle,
   });
 
   @override
@@ -54,7 +56,7 @@ class ConsoleWidget extends StatelessWidget {
         itemBuilder: (context, index) {
           return Text(
             outputLines[index],
-            style: const TextStyle(fontFamily: "monospace"),
+            style: textStyle ?? const TextStyle(fontFamily: "monospace"),
           );
         },
         separatorBuilder: (context, index) {
@@ -72,14 +74,17 @@ class ConsoleWidget extends StatelessWidget {
           child: TextField(
             controller: inputController,
             focusNode: focusNode,
+            style: textStyle,
             decoration: InputDecoration(
               hintText: hintText,
+              hintStyle: textStyle?.copyWith(color: textStyle?.color?.withOpacity(0.5)),
             ),
             onSubmitted: onSubmitted,
           ),
         ),
         IconButton(
           icon: const Icon(Icons.send),
+          color: textStyle?.color,
           onPressed: onSend,
         ),
       ],

@@ -496,6 +496,10 @@ typedef mxml_options_get_sheet_maximum_width_func = Double Function(Pointer<MXML
 typedef mxml_layout_with_options_func = Void Function(Pointer<MXMLHandle>, Float, Pointer<MXMLOptions>);
 typedef MxmlLayoutWithOptions = void Function(Pointer<MXMLHandle>, double, Pointer<MXMLOptions>);
 
+// void mxml_set_viewport(mXMLHandle* handle, double y, double height);
+typedef mxml_set_viewport_func = Void Function(Pointer<MXMLHandle>, Double, Double);
+typedef MxmlSetViewport = void Function(Pointer<MXMLHandle>, double, double);
+
 // --- Options Dart Typedefs ---
 
 typedef OptionsSetBool = void Function(Pointer<MXMLOptions>, int);

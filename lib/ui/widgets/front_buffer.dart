@@ -7,6 +7,8 @@ class FrontBufferWidget extends StatelessWidget {
   final EdgeInsets padding;
   final double lineSpacing;
   final ValueChanged<double>? onWidthChanged;
+  final TextStyle? textStyle;
+  final TextStyle? titleStyle;
 
   const FrontBufferWidget({
     super.key,
@@ -15,6 +17,8 @@ class FrontBufferWidget extends StatelessWidget {
     required this.padding,
     required this.lineSpacing,
     this.onWidthChanged,
+    this.textStyle,
+    this.titleStyle,
   });
 
   @override
@@ -38,7 +42,7 @@ class FrontBufferWidget extends StatelessWidget {
                 padding: padding,
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: titleStyle ?? Theme.of(context).textTheme.titleMedium,
                 ),
               ),
               const Divider(height: 1),
@@ -51,7 +55,7 @@ class FrontBufferWidget extends StatelessWidget {
                         itemBuilder: (context, index) {
                           return Text(
                             lines[index],
-                            style: const TextStyle(fontFamily: "monospace"),
+                            style: textStyle ?? const TextStyle(fontFamily: "monospace"),
                           );
                         },
                         separatorBuilder: (context, index) {

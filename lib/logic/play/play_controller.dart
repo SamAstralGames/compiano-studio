@@ -175,6 +175,15 @@ class PlayController {
       case "getRenderCommandCount":
         _handleRenderCommandCount();
         return;
+      case "play":
+        _scoreController.play();
+        _appendOutput("Playback started.");
+        return;
+      case "pause":
+      case "stop":
+        _scoreController.pause();
+        _appendOutput("Playback paused.");
+        return;
       default:
         _appendOutput("Unknown command: $command");
         return;
@@ -200,6 +209,8 @@ class PlayController {
     _appendOutput("  getPipelineBench");
     _appendOutput("  writeSVG <path>");
     _appendOutput("  getRenderCommandCount");
+    _appendOutput("  play");
+    _appendOutput("  pause");
   }
 
   // Traite la commande load.

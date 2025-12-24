@@ -9,11 +9,15 @@ class ScorePainter extends CustomPainter {
   // Plus de pointeurs ici ! Seulement des objets Dart.
   final List<RenderCommand> commands;
   final bool isDarkMode;
+  final double cursorY;
+  final void Function(double ms)? onPaintTime;
 
   ScorePainter({
     required this.commands,
     required Listenable repaint,
     this.isDarkMode = false,
+    this.cursorY = 0.0,
+    this.onPaintTime,
   }) : super(repaint: repaint);
 
   @override
@@ -21,32 +25,49 @@ class ScorePainter extends CustomPainter {
     // Fond géré par le Container parent (ou dessiné ici si besoin)
     // Pour être sûr, on ne dessine pas de fond ici pour laisser la transparence, 
     // ou on dessine le bgColor si on veut. Le Container l'a déjà.
+
+    final stopwatch = Stopwatch()..start();
     
-    // Couleur principale (Lignes, Texte)
-    final mainColor = isDarkMode ? Colors.white : Colors.black;
+    try {
+      // Couleur principale (Lignes, Texte)
+      final mainColor = isDarkMode ? Colors.white : Colors.black;
 
-    // Log synthétique sans boucle pour éviter le spam.
-    _logDiagnostics();
+      // Log synthétique sans boucle pour éviter le spam.
+      _logDiagnostics();
 
-    if (commands.isEmpty) {
-      return;
-    }
+      if (commands.isEmpty) {
+        return;
+      }
 
-    // Itération sur les commandes
-    for (final cmd in commands) {
-      switch (cmd) {
-        case RenderLine():
-          _drawLine(canvas, cmd, mainColor);
-          break;
-        case RenderGlyph():
-          _drawGlyph(canvas, cmd, mainColor);
-          break;
-        case RenderText():
-          _drawText(canvas, cmd, mainColor);
-          break;
-        case RenderDebugRect():
-          _drawDebugRect(canvas, cmd);
-          break;
+      // Itération sur les commandes
+      for (final cmd in commands) {
+        switch (cmd) {
+          case RenderLine():
+            _drawLine(canvas, cmd, mainColor);
+            break;
+          case RenderGlyph():
+            _drawGlyph(canvas, cmd, mainColor);
+            break;
+          case RenderText():
+            _drawText(canvas, cmd, mainColor);
+            break;
+          case RenderDebugRect():
+            _drawDebugRect(canvas, cmd);
+            break;
+        }
+      }
+
+      // Dessin du curseur de lecture (Playhead)
+      if (cursorY > 0) {
+        final cursorPaint = Paint()
+          ..color = Colors.red.withOpacity(0.8)
+          ..strokeWidth = 2.0;
+        canvas.drawLine(Offset(0, cursorY), Offset(size.width, cursorY), cursorPaint);
+      }
+    } finally {
+      stopwatch.stop();
+      if (onPaintTime != null) {
+        onPaintTime!(stopwatch.elapsedMicroseconds / 1000.0);
       }
     }
   }
@@ -170,7 +191,8 @@ class ScorePainter extends CustomPainter {
   bool shouldRepaint(covariant ScorePainter oldDelegate) {
     // Comparaison simple de référence de liste (la liste est recréée à chaque layout)
     return oldDelegate.commands != commands ||
-           oldDelegate.isDarkMode != isDarkMode;
+           oldDelegate.isDarkMode != isDarkMode ||
+           oldDelegate.cursorY != cursorY;
   }
 
   // Log les valeurs utiles uniquement si elles changent.

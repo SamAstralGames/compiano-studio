@@ -18,6 +18,8 @@ class _LibraryPageState extends State<LibraryPage> {
     {'title': 'test 2', 'path': 'assets/test2.xml', 'composer': 'Sam'},
     {'title': 'test 3', 'path': 'assets/test3.xml', 'composer': 'Claude Debussy'},
     {'title': 'test all', 'path': 'assets/test-all.xml', 'composer': 'Erik Satie'},
+    {'title': 'Elite Syncopations', 'path': 'assets/ScottJoplin_EliteSyncopations.xml', 'composer': 'Scott Joplin '},
+    {'title': 'An Die Ferne Geliebte', 'path': 'assets/Beethoven_AnDieFerneGeliebte.xml', 'composer': 'Beethoven'},
   ];
 
   Future<void> _importFile() async {

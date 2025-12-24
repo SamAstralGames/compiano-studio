@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'piano_keyboard.dart';
 // On remplace le mock local par le package réel
 //import 'package:music_xml_engine/music_xml_engine.dart';
+import '../core/bridge.dart'; // Pour MXMLPipelineBench
 import 'score_painter.dart';
 import '../logic/score/score_controller.dart';
 import '../logic/play/play_controller.dart';
 import 'widgets/console.dart';
 import 'widgets/front_buffer.dart';
+import 'widgets/benchmark_overlay.dart';
 
 class ScorePage extends StatefulWidget {
   final VoidCallback onClose;
@@ -37,6 +40,7 @@ class _ScorePageState extends State<ScorePage> {
 
   bool _isKeyboardVisible = false;
   bool _isFocusMode = false; // Pour zoomer sur une partie du clavier
+  bool _isChunkingEnabled = false; // Mode chunking (dev)
   
   String _statusMessage = "Ready";
   bool _isLoading = false;
@@ -52,6 +56,7 @@ class _ScorePageState extends State<ScorePage> {
   final Set<int> _activeNotes = {};
   Timer? _demoTimer;
   final ScrollController _rightbarScrollController = ScrollController();
+  final ScrollController _scoreScrollController = ScrollController();
   final TextEditingController _rightbarInputController = TextEditingController();
   final FocusNode _rightbarInputFocusNode = FocusNode();
 
@@ -64,6 +69,9 @@ class _ScorePageState extends State<ScorePage> {
   // Benchmarks
   int _reprocessCount = 0;
   double _lastProcessTimeMs = 0.0;
+  final ValueNotifier<double> _currentFps = ValueNotifier<double>(0.0);
+  final List<double> _recentFrameTimes = [];
+
   //List<BenchLayer> _benchLayers = const [];
   
   // Memoise les dernieres valeurs loggees pour eviter le spam.
@@ -83,13 +91,14 @@ class _ScorePageState extends State<ScorePage> {
   @override
   void initState() {
     super.initState();
+    print("[ScorePage] initState");
 
     try {
       // Informe si le controleur partage est pret.
       if (_controller.ready) {
         _statusMessage = "Engine initialized";
       } else {
-        _statusMessage = "Engine initialization failed";
+        _statusMessage = "Engine initialization failed: ${_controller.initializationError ?? 'Unknown error'}";
       }
     } catch (e) {
       _statusMessage = "Error initializing engine: $e";
@@ -102,6 +111,11 @@ class _ScorePageState extends State<ScorePage> {
 
     // Scrolle la console rightbar quand une nouvelle sortie arrive.
     _playController.consoleLines.addListener(_scrollRightbarConsoleToBottom);
+    _scoreScrollController.addListener(_onScoreScroll);
+    _controller.playbackCursorY.addListener(_onPlaybackCursorChanged);
+    
+    // Ecoute les timings de rendu pour le calcul FPS
+    SchedulerBinding.instance.addTimingsCallback(_onReportTimings);
 
     //_loadScore();
   }
@@ -162,6 +176,9 @@ class _ScorePageState extends State<ScorePage> {
     final stopwatch = Stopwatch()..start();
     // Utilise le controleur partage pour lancer le layout.
     _controller.layout(width: width);
+    
+    // Apres le layout, on force une mise a jour du viewport (si on est deja scrolle).
+    _updateViewport();
     stopwatch.stop();
     
     _lastProcessTimeMs = stopwatch.elapsedMicroseconds / 1000.0;
@@ -192,10 +209,37 @@ class _ScorePageState extends State<ScorePage> {
   void dispose() {
     _demoTimer?.cancel();
     _playController.consoleLines.removeListener(_scrollRightbarConsoleToBottom);
+    _scoreScrollController.removeListener(_onScoreScroll);
+    _controller.playbackCursorY.removeListener(_onPlaybackCursorChanged);
+    SchedulerBinding.instance.removeTimingsCallback(_onReportTimings);
     _rightbarScrollController.dispose();
+    _scoreScrollController.dispose();
     _rightbarInputController.dispose();
     _rightbarInputFocusNode.dispose();
     super.dispose();
+  }
+
+  // Callback appele par Flutter a chaque frame terminee.
+  void _onReportTimings(List<FrameTiming> timings) {
+    if (!_controller.benchmarkOverlayVisible.value) return;
+
+    for (final timing in timings) {
+      // Temps total de la frame (Build + Raster) en ms
+      _recentFrameTimes.add(timing.totalSpan.inMicroseconds / 1000.0);
+    }
+
+    // On lisse sur une fenetre plus courte (ex: 20 frames) pour plus de reactivite.
+    const int windowSize = 20;
+    if (_recentFrameTimes.length > windowSize) {
+      _recentFrameTimes.removeRange(0, _recentFrameTimes.length - windowSize);
+    }
+
+    // Calcul immediat des qu'on a des donnees
+    if (_recentFrameTimes.isNotEmpty) {
+      final avgTime = _recentFrameTimes.reduce((a, b) => a + b) / _recentFrameTimes.length;
+      // FPS = 1000 / temps_moyen
+      _currentFps.value = avgTime > 0 ? (1000.0 / avgTime) : 0.0;
+    }
   }
 
   // Fonction pour simuler du MIDI (Demo)
@@ -258,8 +302,72 @@ class _ScorePageState extends State<ScorePage> {
     });
   }
 
+  // Callback de scroll pour le Culling.
+  void _onScoreScroll() {
+    // On differe la mise a jour si on est en plein build/layout (ex: ajustement initial du ScrollView).
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateViewport();
+      });
+    } else {
+      _updateViewport();
+    }
+  }
+
+  // Gere l'auto-scroll quand le curseur de lecture avance.
+  void _onPlaybackCursorChanged() {
+    // Si le chunking est actif (page fixe), on ne scrolle pas (ou on change de page plus tard).
+    if (_isChunkingEnabled) return;
+    if (!_scoreScrollController.hasClients) return;
+
+    final cursorY = _controller.playbackCursorY.value;
+    final scrollOffset = _scoreScrollController.offset;
+    final viewportHeight = _scoreScrollController.position.viewportDimension;
+
+    // Marge de confort (zone ou le curseur doit rester visible)
+    const double bottomMargin = 100.0;
+    
+    // Si le curseur descend trop bas, on scrolle pour le garder a l'ecran.
+    if (cursorY > scrollOffset + viewportHeight - bottomMargin) {
+      // On scrolle pour placer le curseur au tiers superieur de l'ecran (lecture continue).
+      final target = max(0.0, cursorY - (viewportHeight * 0.3));
+      _scoreScrollController.jumpTo(target);
+    }
+  }
+
+  // Calcule et envoie la fenetre visible au controller.
+  void _updateViewport() {
+    if (!_controller.ready) return;
+    
+    // Si chunking active (mode page fixe), on envoie 0..ecran.
+    // Si scroll active, on envoie offset..ecran.
+    double offset = 0.0;
+    double height = MediaQuery.of(context).size.height; // Fallback
+
+    if (!_isChunkingEnabled && _scoreScrollController.hasClients) {
+      offset = _scoreScrollController.offset;
+      height = _scoreScrollController.position.viewportDimension;
+    }
+    
+    _controller.updateVisibleWindow(offset, height);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Si le moteur a echoue a l'initialisation, on affiche l'erreur bloquante.
+    if (!_controller.ready) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Text(
+            "Engine Initialization Failed:\n${_controller.initializationError ?? 'Unknown Error'}",
+            style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.blueGrey.shade900, // Fond sombre pour le contraste
       appBar: AppBar(
@@ -314,9 +422,12 @@ class _ScorePageState extends State<ScorePage> {
 
                         // Si la largeur change, on recalcule le layout via FFI
                         if (width > 0 && (width - _canvasWidth).abs() > 1.0) {
-                          print ( "Redimensionnement width : $width height : scoreConstraints.maxHeight : ${scoreConstraints.maxHeight} " ); 
+                          // print ( "Redimensionnement width : $width height : scoreConstraints.maxHeight : ${scoreConstraints.maxHeight} " ); 
                           _canvasWidth = width;
-                          _performLayout(_canvasWidth);
+                          // On differe le layout pour eviter "setState during build"
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _performLayout(width);
+                          });
                         }
                         else
                         {
@@ -325,26 +436,87 @@ class _ScorePageState extends State<ScorePage> {
                         }
                         
                         return Container(
-                          color: Colors.white,
-                          padding: const EdgeInsets.all(20.0),
+                          color: Colors.transparent,
+                          // padding: const EdgeInsets.all(20.0), // Deplace dans le builder
                           child: ValueListenableBuilder<int>(
                             valueListenable: _controller.renderVersion,
                             builder: (context, _, __) {
                               // Met a jour la taille du canvas quand le buffer change.
                               final contentHeight = _controller.contentHeight;
-                              final parentHeight = scoreConstraints.maxHeight;
-                              final paintHeight = contentHeight > 0 ? contentHeight : parentHeight;
+                              
+                              // Calcul de la hauteur de rendu
+                              // Si chunking ON : on prend la hauteur de l'ecran (moins marges)
+                              // Si chunking OFF : on prend la hauteur du contenu (scrollable)
+                              final double verticalMargins = 40.0; // 20 top + 20 bottom
+                              final double availableHeight = scoreConstraints.maxHeight - verticalMargins;
+                              
+                              final double paintHeight = _isChunkingEnabled
+                                  ? availableHeight
+                                  : (contentHeight > 0 ? contentHeight : availableHeight);
+
                               _logPaintSize(width, paintHeight);
-                              return SingleChildScrollView(
-                                child: CustomPaint(
-                                  painter: ScorePainter(
-                                    commands: _controller.renderCommands,
-                                    repaint: _controller.renderVersion,
-                                    isDarkMode: _isDarkMode,
-                                  ),
-                                  size: Size(width, paintHeight),
+                              
+                              // Le widget "Page" (Fond blanc + Ombre)
+                              final Widget page = Container(
+                                width: width,
+                                height: paintHeight,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  boxShadow: const [
+                                    BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 4))
+                                  ],
+                                ),
+                                child: ValueListenableBuilder<double>(
+                                  valueListenable: _controller.playbackCursorY,
+                                  builder: (context, cursorY, _) {
+                                    return GestureDetector(
+                                      onTapUp: (details) {
+                                        final note = _controller.findGlyphAt(details.localPosition);
+                                        if (note != null) {
+                                          debugPrint("[ScorePage] Hit Note: id=${note.id} codepoint=${note.codepoint}");
+                                          // Feedback visuel dans la console de l'app
+                                          _playController.executeCommand("echo Hit Note ID: ${note.id}");
+                                        }
+                                      },
+                                      child: ClipRect(
+                                        child: CustomPaint(
+                                          painter: ScorePainter(
+                                            commands: _controller.renderCommands,
+                                            repaint: _controller.renderVersion,
+                                            isDarkMode: _isDarkMode,
+                                            cursorY: cursorY,
+                                            onPaintTime: (ms) {
+                                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                                if (mounted) _controller.lastPaintTimeMs.value = ms;
+                                              });
+                                            },
+                                          ),
+                                          size: Size(width, paintHeight),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               );
+
+                              if (!_isChunkingEnabled) {
+                                return Scrollbar(
+                                  controller: _scoreScrollController,
+                                  thumbVisibility: true, // Toujours visible pour le Desktop
+                                  child: SingleChildScrollView(
+                                    controller: _scoreScrollController,
+                                    padding: const EdgeInsets.all(20.0),
+                                    child: page,
+                                  ),
+                                );
+                              } else {
+                                // Mode Chunking : Pas de scroll, juste la page centree/calee
+                                return Container(
+                                  padding: const EdgeInsets.all(20.0),
+                                  alignment: Alignment.topCenter,
+                                  child: page,
+                                );
+                              }
                             },
                           ),
                         );
@@ -352,6 +524,13 @@ class _ScorePageState extends State<ScorePage> {
                     ),
                     // ZONE 2 : Rightbar overlay (sans redimensionner la partition)
                     _buildLeftbarOverlay(context, constraints.maxWidth, constraints.maxHeight),
+                    // ZONE 3 : Benchmark Overlay (Gauche)
+                    BenchmarkOverlay(
+                      visible: _controller.benchmarkOverlayVisible,
+                      lastBenchmark: _controller.lastBenchmark,
+                      lastPaintTimeMs: _controller.lastPaintTimeMs,
+                      currentFps: _currentFps,
+                    ),
                   ],
                 ),
               ),
@@ -375,6 +554,12 @@ class _ScorePageState extends State<ScorePage> {
       ),
     );
   }
+
+  // Style de texte pour le debug (plus petit).
+  TextStyle get _debugTextStyle => Theme.of(context).textTheme.bodySmall!.copyWith(
+    fontSize: 10,
+    color: Colors.white,
+  );
 
   // Construit la leftbar overlay et ses onglets.
   Widget _buildLeftbarOverlay(BuildContext context, double maxWidth, double maxHeight) {
@@ -537,24 +722,68 @@ class _ScorePageState extends State<ScorePage> {
     return [
       Text(
         "Debug",
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+        style: _debugTextStyle.copyWith(fontSize: 14, fontWeight: FontWeight.bold),
       ),
       const Divider(color: Colors.white24, height: 30),
       Center(
         child: OutlinedButton(
           onPressed: _toggleDemoPlay,
-          child: Text(_demoTimer != null ? "Stop Demo" : "Test MIDI (Random)"),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: const BorderSide(color: Colors.white24),
+          ),
+          child: Text(_demoTimer != null ? "Stop Demo" : "Test MIDI (Random)", style: _debugTextStyle),
         ),
       ),
       const SizedBox(height: 10),
       Center(
         child: TextButton.icon(
           onPressed: () => setState(() => _isFocusMode = !_isFocusMode),
-          icon: Icon(_isFocusMode ? Icons.zoom_out : Icons.zoom_in),
-          label: Text(_isFocusMode ? "Vue Complète" : "Vue Zoomée"),
+          icon: Icon(_isFocusMode ? Icons.zoom_out : Icons.zoom_in, size: 16, color: Colors.white70),
+          label: Text(_isFocusMode ? "Vue Complète" : "Vue Zoomée", style: _debugTextStyle),
         ),
       ),
       const SizedBox(height: 10),
+      if (kDebugMode) ...[
+      // Toggle Benchmark Overlay
+      ValueListenableBuilder<bool>(
+        valueListenable: _controller.benchmarkOverlayVisible,
+        builder: (context, visible, _) {
+          return SwitchListTile(
+            title: Text("Benchmarks Overlay", style: _debugTextStyle),
+            value: visible,
+            onChanged: (val) {
+              _controller.setBenchmarkOverlayVisible(val);
+              // Force un refresh des stats si on l'active
+              if (val) {
+                _controller.layout(useOptions: false); // Hack pour refresh stats sans full layout
+              }
+            },
+            activeColor: Colors.greenAccent,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          );
+        },
+      ),
+      Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text("Chunking", style: _debugTextStyle),
+            Switch(
+              value: _isChunkingEnabled,
+              onChanged: (val) {
+                setState(() => _isChunkingEnabled = val);
+                _controller.setSpatialIndexing(val);
+                // On relance le layout pour charger/decharger les commandes selon le mode
+                _controller.layout();
+              },
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 10),
+      ],
       Center(
         child: ElevatedButton.icon(
           onPressed: () {
@@ -572,8 +801,8 @@ class _ScorePageState extends State<ScorePage> {
             });
 
           },
-          icon: Icon(_isKeyboardVisible ? Icons.keyboard_hide : Icons.keyboard),
-          label: Text(_isKeyboardVisible ? "Cacher le clavier" : "Afficher le clavier"),
+          icon: Icon(_isKeyboardVisible ? Icons.keyboard_hide : Icons.keyboard, size: 16),
+          label: Text(_isKeyboardVisible ? "Cacher le clavier" : "Afficher le clavier", style: _debugTextStyle),
           style: ElevatedButton.styleFrom(
             foregroundColor: Colors.white,
             backgroundColor: Colors.blueGrey.shade700,
@@ -583,7 +812,7 @@ class _ScorePageState extends State<ScorePage> {
       const SizedBox(height: 20),
       Text(
         "Transparence",
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.white70),
+        style: _debugTextStyle.copyWith(color: Colors.white70),
       ),
       ValueListenableBuilder<double>(
         valueListenable: _controller.leftbarOpacity,
@@ -615,6 +844,7 @@ class _ScorePageState extends State<ScorePage> {
                     lineSpacing: 4.0,
                     inputSpacing: 8.0,
                     hintText: "Enter command",
+                    textStyle: _debugTextStyle.copyWith(fontFamily: "monospace"),
                   );
                 },
               ),
@@ -629,6 +859,8 @@ class _ScorePageState extends State<ScorePage> {
                     title: "FrontBuffer",
                     padding: EdgeInsets.zero,
                     lineSpacing: 4.0,
+                    textStyle: _debugTextStyle.copyWith(fontFamily: "monospace"),
+                    titleStyle: _debugTextStyle.copyWith(fontWeight: FontWeight.bold),
                     // onWidthChanged: _playController.updateLayoutWidth,
                   );
                 },

@@ -50,10 +50,22 @@ endfunction()
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
-# Add mxmlconverter submodule
-# Force DEBUGLEVEL=2 for verbose logging in the embedded library.
-set(DEBUGLEVEL "2" CACHE STRING "Compile-time debug log level: 0..3" FORCE)
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mxmlconverter" "${CMAKE_CURRENT_BINARY_DIR}/mxmlconverter")
+# Select pre-built mxmlconverter library based on build type
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  set(MXML_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mxmlconverter/build/debug/lib/libmxmlconverter.so")
+else()
+  set(MXML_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mxmlconverter/build/release/lib/libmxmlconverter.so")
+endif()
+
+if(NOT EXISTS "${MXML_LIB_PATH}")
+  message(FATAL_ERROR "libmxmlconverter.so not found at ${MXML_LIB_PATH}. Please build it first.")
+endif()
+
+# Create an imported target to satisfy any link dependencies in runner/CMakeLists.txt
+add_library(mxmlconverter-shared SHARED IMPORTED GLOBAL)
+set_target_properties(mxmlconverter-shared PROPERTIES
+  IMPORTED_LOCATION "${MXML_LIB_PATH}"
+)
 
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
@@ -99,9 +111,8 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
-install(TARGETS mxmlconverter-shared
-  RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-  LIBRARY DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+install(FILES "${MXML_LIB_PATH}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
